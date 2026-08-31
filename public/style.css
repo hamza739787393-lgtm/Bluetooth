@@ -50,12 +50,24 @@ tr:hover { background: #111; }
 .conversation-item:hover { border-color: #00ffcc; box-shadow: 0 0 20px rgba(0,255,204,0.5); transform: translateX(-5px); }
 .conversation-avatar { font-size: 30px; }
 .conversation-info { flex: 1; }
-.conversation-name { display: inline-block; padding: 3px 10px; border-radius: 5px; background: #111; border: 1px solid #00ffcc; color: #00ffcc; font-weight: bold; animation: nameGlow 2s infinite; }
+
+/* ✅ الاسم بدون مربع — فقط نص متوهج */
+.conversation-name {
+    color: #00ffcc;
+    font-weight: bold;
+    font-size: 16px;
+    text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc;
+    animation: nameGlow 2s infinite;
+}
+
+@keyframes nameGlow {
+    0%, 100% { text-shadow: 0 0 5px #00ffcc; }
+    50% { text-shadow: 0 0 15px #00ffcc, 0 0 30px #00ffcc; }
+}
+
 .conversation-preview { color: #aaa; font-size: 13px; }
 .conversation-time { color: #888; font-size: 12px; }
 .conversation-count { background: #00ffcc; color: black; padding: 5px 10px; border-radius: 15px; font-size: 12px; }
-
-@keyframes nameGlow { 0%, 100% { box-shadow: 0 0 5px #00ffcc; } 50% { box-shadow: 0 0 20px #00ffcc, 0 0 40px #00ffcc; } }
 
 .back-btn { background: #111; color: #00ffcc; border: 1px solid #00ffcc; padding: 10px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 15px; }
 .messages-list { max-height: 500px; overflow-y: auto; padding: 10px; }
@@ -120,4 +132,4 @@ tr:hover { background: #111; }
     .images-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .thumb { height: 120px; }
     h1 { font-size: 24px; }
-                     }
+           }
