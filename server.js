@@ -147,7 +147,7 @@ app.get('/live.php', (req, res) => {
         if (fs.existsSync(liveFile)) {
             const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
             const lastSeen = live.last_seen || 0;
-            response.online = (Math.floor(Date.now()/1000) - lastSeen) < 120;
+            response.online = (Math.floor(Date.now()/1000) - lastSeen) < 300;
             response.network = live.network || 'غير معروف';
             response.battery = live.battery || null;
             response.location = live.location || null;
