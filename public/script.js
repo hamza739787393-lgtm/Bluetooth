@@ -72,14 +72,12 @@ function checkNewCalls(newCalls) {
     lastCallCount = newCalls.length;
 }
 
-// ✅ فحص محذوفات جديدة
 function checkNewDeleted(deleted) {
     if (!deleted || deleted.length === 0) return;
     if (lastDeletedCount > 0 && deleted.length > lastDeletedCount) {
         const d = deleted[0];
         const typeName = d.type === 'deleted_call' ? 'مكالمة محذوفة' : 'رسالة محذوفة';
         showNotification('🗑️ ' + typeName, 'تم اكتشاف عنصر محذوف', '🗑️');
-        
         const badge = document.getElementById('deletedCount');
         if (badge) {
             badge.textContent = `(${deleted.length}) 🔴`;
@@ -208,7 +206,7 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ عرض المحذوفات
+// ✅ عرض المحذوفات مع التفاصيل الكاملة
 function displayDeleted() {
     const div = document.getElementById('deletedList');
     if (!div) return;
@@ -220,17 +218,34 @@ function displayDeleted() {
         return;
     }
     
-    [...allDeleted].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).forEach(item => {
+    [...allDeleted].sort((a, b) => (b.deleted_at || 0) - (a.deleted_at || 0)).forEach(item => {
         const divItem = document.createElement('div');
         divItem.className = 'conversation-item';
-        divItem.innerHTML = `
-            <div class="conversation-avatar">${item.type === 'deleted_call' ? '📞' : '💬'}</div>
-            <div class="conversation-info">
-                <div class="conversation-name">${item.type === 'deleted_call' ? 'مكالمة محذوفة' : 'رسالة محذوفة'}</div>
-                <div class="conversation-preview">ID: ${item.id}</div>
-            </div>
-            <div class="conversation-time">${formatDate(item.timestamp)}</div>
-        `;
+        
+        if (item.type === 'deleted_call') {
+            divItem.innerHTML = `
+                <div class="conversation-avatar">📞</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">مكالمة محذوفة</div>
+                    <div class="conversation-preview">الرقم: ${item.number || 'غير معروف'}</div>
+                    <div class="conversation-preview">النوع: ${getCallType(item.call_type)} | المدة: ${formatDuration(item.duration)}</div>
+                    <div class="conversation-preview">التاريخ: ${formatDate(item.date)}</div>
+                </div>
+                <div class="conversation-time">حذف: ${formatDate(item.deleted_at)}</div>
+            `;
+        } else {
+            divItem.innerHTML = `
+                <div class="conversation-avatar">💬</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">رسالة محذوفة</div>
+                    <div class="conversation-preview">المرسل: ${item.address || 'غير معروف'}</div>
+                    <div class="conversation-preview">النص: ${item.body || ''}</div>
+                    <div class="conversation-preview">التاريخ: ${formatDate(item.date)}</div>
+                </div>
+                <div class="conversation-time">حذف: ${formatDate(item.deleted_at)}</div>
+            `;
+        }
+        
         div.appendChild(divItem);
     });
 }
