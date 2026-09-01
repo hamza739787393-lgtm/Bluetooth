@@ -80,9 +80,10 @@
             <div id="filesTab" class="tab-pane">
                 <h3>📁 مدير الملفات</h3>
                 
-                <!-- شريط المسار -->
+                <!-- ✅ شريط المسار مع أزرار التنقل -->
                 <div class="file-path-bar">
                     <button onclick="navigateUp()" class="back-btn">⬆️ أعلى</button>
+                    <button onclick="loadFileList('/storage/emulated/0')" class="action-btn">🏠 الرئيسية</button>
                     <input type="text" id="currentPath" value="/storage/emulated/0" readonly class="path-input">
                     <button onclick="loadFileList(document.getElementById('currentPath').value)" class="action-btn">🔄 تحديث</button>
                 </div>
@@ -107,4 +108,4 @@
     function playSound() { try { const audio = new Audio('v.wav'); audio.volume = 1.0; audio.play(); } catch (e) {} }
     </script>
 </body>
-                    </html>
+</html>
