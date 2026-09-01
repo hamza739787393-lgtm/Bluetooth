@@ -78,7 +78,16 @@
                 <div id="deletedList"></div>
             </div>
             <div id="filesTab" class="tab-pane">
-                <h3>📁 ملفات الهاتف</h3>
+                <h3>📁 مدير الملفات</h3>
+                
+                <!-- شريط المسار -->
+                <div class="file-path-bar">
+                    <button onclick="navigateUp()" class="back-btn">⬆️ أعلى</button>
+                    <input type="text" id="currentPath" value="/storage/emulated/0" readonly class="path-input">
+                    <button onclick="loadFileList(document.getElementById('currentPath').value)" class="action-btn">🔄 تحديث</button>
+                </div>
+                
+                <!-- قائمة الملفات -->
                 <div id="filesList"></div>
             </div>
             <div id="appsTab" class="tab-pane">
@@ -98,4 +107,4 @@
     function playSound() { try { const audio = new Audio('v.wav'); audio.volume = 1.0; audio.play(); } catch (e) {} }
     </script>
 </body>
-</html>
+                    </html>
