@@ -80,7 +80,6 @@ function checkNewDeleted(deleted) {
     lastDeletedCount = deleted.length;
 }
 
-// ✅ حذف الجهاز — إعادة تحميل فورية 5 مرات
 async function deleteDevice() {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -205,12 +204,12 @@ function switchTab(tabName) {
 
 // ============ مدير الملفات ============
 
-// ✅ مدير ملفات سريع — فحص كل 3 ثوانٍ
+// ✅ loadFileList الجديد
 async function loadFileList(path) {
     const div = document.getElementById('filesList');
     if (div) div.innerHTML = '<p style="color:#00ffcc;">⏳ جاري القراءة...</p>';
     
-    currentFilePath = path;
+    const requestedPath = path;
     document.getElementById('currentPath').value = path;
     
     await fetch('/api.php', {
@@ -227,6 +226,7 @@ async function loadFileList(path) {
         
         if (data.files && data.files.length > 0) {
             clearInterval(checkInterval);
+            currentFilePath = requestedPath;
             displayFileList(data.files);
         } else if (attempts >= 5) {
             clearInterval(checkInterval);
@@ -276,11 +276,18 @@ function displayFileList(files) {
     });
 }
 
-// ✅ زر تحميل تلقائي
+// ✅ downloadPhoneFile الجديد
 async function downloadPhoneFile(path) {
     const btn = event.target;
     btn.textContent = '⏳';
     btn.disabled = true;
+    
+    let oldCount = 0;
+    try {
+        const oldResponse = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
+        const oldFiles = await oldResponse.json();
+        oldCount = oldFiles.length || 0;
+    } catch (e) {}
     
     await fetch('/api.php', {
         method: 'POST',
@@ -294,16 +301,15 @@ async function downloadPhoneFile(path) {
         const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
         const files = await response.json();
         
-        if (files && files.length > 0) {
+        if (files && files.length > oldCount) {
             clearInterval(checkInterval);
-            btn.textContent = '⬇️ تحميل';
+            btn.textContent = '✅ تم';
             btn.disabled = false;
             loadFiles();
-        } else if (attempts >= 5) {
+        } else if (attempts >= 10) {
             clearInterval(checkInterval);
             btn.textContent = '⬇️ تحميل';
             btn.disabled = false;
-            alert('❌ فشل التحميل');
         }
     }, 3000);
 }
