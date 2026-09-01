@@ -186,6 +186,7 @@ async function loadAllData() {
     await loadDeviceInfo();
 }
 
+// ✅ التعديل — بدون loadFiles
 function switchTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -196,7 +197,7 @@ function switchTab(tabName) {
     
     if (tabName === 'images') loadImages();
     if (tabName === 'deleted') loadDeleted();
-    if (tabName === 'files') { loadFileList(currentFilePath); loadFiles(); }
+    if (tabName === 'files') { loadFileList(currentFilePath); }
     if (tabName === 'apps') loadApps();
     if (tabName === 'device') loadDeviceInfo();
     if (tabName === 'contacts') loadContacts();
@@ -204,7 +205,6 @@ function switchTab(tabName) {
 
 // ============ مدير الملفات ============
 
-// ✅ loadFileList الجديد
 async function loadFileList(path) {
     const div = document.getElementById('filesList');
     if (div) div.innerHTML = '<p style="color:#00ffcc;">⏳ جاري القراءة...</p>';
@@ -276,7 +276,6 @@ function displayFileList(files) {
     });
 }
 
-// ✅ downloadPhoneFile الجديد
 async function downloadPhoneFile(path) {
     const btn = event.target;
     btn.textContent = '⏳';
