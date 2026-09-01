@@ -87,6 +87,7 @@ function checkNewDeleted(deleted) {
     lastDeletedCount = deleted.length;
 }
 
+// ✅ حذف الجهاز مع 5 محاولات إعادة تحميل
 async function deleteDevice() {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -101,7 +102,13 @@ async function deleteDevice() {
             document.getElementById('deviceSelect').value = '';
             document.getElementById('deviceNameDisplay').textContent = 'لا يوجد جهاز محدد';
             document.getElementById('deviceNameDisplay').className = 'device-name-display';
-            loadDevices();
+            
+            // ✅ 5 محاولات
+            setTimeout(() => { loadDevices(); }, 500);
+            setTimeout(() => { loadDevices(); }, 1500);
+            setTimeout(() => { loadDevices(); }, 3000);
+            setTimeout(() => { loadDevices(); }, 5000);
+            setTimeout(() => { loadDevices(); }, 8000);
         } else {
             alert('❌ خطأ: ' + (result.error || 'غير معروف'));
         }
@@ -192,7 +199,6 @@ async function loadAllData() {
     await loadDeleted();
 }
 
-// ✅ تحميل المحذوفات
 async function loadDeleted() {
     try {
         const response = await fetch(`/api.php?action=get_deleted&device=${encodeURIComponent(currentDevice)}`);
@@ -206,7 +212,6 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ عرض المحذوفات مع التفاصيل الكاملة
 function displayDeleted() {
     const div = document.getElementById('deletedList');
     if (!div) return;
