@@ -87,7 +87,6 @@ function checkNewDeleted(deleted) {
     lastDeletedCount = deleted.length;
 }
 
-// ✅ حذف الجهاز مع 5 محاولات إعادة تحميل
 async function deleteDevice() {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -103,7 +102,6 @@ async function deleteDevice() {
             document.getElementById('deviceNameDisplay').textContent = 'لا يوجد جهاز محدد';
             document.getElementById('deviceNameDisplay').className = 'device-name-display';
             
-            // ✅ 5 محاولات
             setTimeout(() => { loadDevices(); }, 500);
             setTimeout(() => { loadDevices(); }, 1500);
             setTimeout(() => { loadDevices(); }, 3000);
@@ -161,8 +159,8 @@ function selectDevice(deviceId) {
     if (dataInterval) clearInterval(dataInterval);
     
     if (deviceId) {
-        updateInterval = setInterval(updateLiveData, 5000);
-        dataInterval = setInterval(() => { if (currentDevice) loadAllData(); }, 10000);
+        updateInterval = setInterval(updateLiveData, 1000);
+        dataInterval = setInterval(() => { if (currentDevice) loadAllData(); }, 5000);
         updateLiveData();
         loadAllData();
     }
@@ -174,11 +172,42 @@ async function updateLiveData() {
         const response = await fetch(`/live.php?device=${encodeURIComponent(currentDevice)}`);
         const data = await response.json();
         
+        // ✅ الحالة
         const statusEl = document.getElementById('networkStatus');
-        if (data.online) { statusEl.textContent = data.network || 'متصل'; statusEl.className = 'value online'; }
+        if (data.online) { statusEl.textContent = 'متصل'; statusEl.className = 'value online'; }
         else { statusEl.textContent = 'غير متصل'; statusEl.className = 'value offline'; }
         
-        if (data.battery !== null && data.battery !== undefined) document.getElementById('batteryStatus').textContent = data.battery + '%';
+        // ✅ نوع الشبكة
+        const networkTypeEl = document.getElementById('networkType');
+        if (networkTypeEl) networkTypeEl.textContent = data.network_type || '—';
+        
+        // ✅ اسم الشبكة
+        const networkNameEl = document.getElementById('networkName');
+        if (networkNameEl) networkNameEl.textContent = data.network_name || '—';
+        
+        // ✅ قوة الإشارة
+        const signalEl = document.getElementById('signalStrength');
+        if (signalEl) signalEl.textContent = data.signal_strength || '—';
+        
+        // ✅ البطارية
+        if (data.battery !== null && data.battery !== undefined) {
+            document.getElementById('batteryStatus').textContent = data.battery + '%';
+        }
+        
+        // ✅ حالة البطارية
+        const batteryStateEl = document.getElementById('batteryState');
+        if (batteryStateEl) batteryStateEl.textContent = data.battery_status || '—';
+        
+        // ✅ آخر اتصال
+        if (data.last_seen) {
+            const lastSeenEl = document.getElementById('lastSeen');
+            if (lastSeenEl) {
+                const date = new Date(data.last_seen * 1000);
+                lastSeenEl.textContent = date.toLocaleString('ar');
+            }
+        }
+        
+        // ✅ العدادات
         if (data.call_count !== undefined) document.getElementById('callCount').textContent = `(${data.call_count})`;
         if (data.sms_count !== undefined) document.getElementById('smsCount').textContent = `(${data.sms_count})`;
         if (data.contacts_count !== undefined) document.getElementById('contactsCount').textContent = `(${data.contacts_count})`;
