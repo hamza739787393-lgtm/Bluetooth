@@ -267,7 +267,7 @@ async function loadWhatsApp() {
     } catch (e) {}
 }
 
-// ✅ فتح محادثة واتساب — مثل واتساب الحقيقي بالتناوب
+// ✅ فتح محادثة واتساب — تناوب إجباري
 async function openWhatsAppChat(sender) {
     try {
         const response = await fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`);
@@ -305,7 +305,7 @@ async function openWhatsAppChat(sender) {
             </div>
             <div id="whatsappMessagesContainer" style="flex:1;overflow-y:auto;padding:20px;background:#0a0a0a;">
                 ${senderMessages.map((msg, index) => {
-                    const isOutgoing = msg.is_outgoing !== undefined ? msg.is_outgoing === true : index % 2 === 1;
+                    const isOutgoing = index % 2 === 1;
                     
                     return `
                     <div class="wa-msg" data-timestamp="${msg.timestamp}" style="margin-bottom:12px;">
