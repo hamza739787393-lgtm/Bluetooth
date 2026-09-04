@@ -211,7 +211,7 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ تحميل رسائل واتساب — محادثات مثل واتساب الحقيقي
+// ✅ تحميل رسائل واتساب — محادثات مجمعة
 async function loadWhatsApp() {
     try {
         const response = await fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`);
@@ -238,6 +238,7 @@ async function loadWhatsApp() {
             const msgs = conversations[sender].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
             const lastMsg = msgs[msgs.length - 1];
             const imageCount = msgs.filter(m => m.image_data).length;
+            const displayName = findContactName(sender) || sender;
             
             const conversationDiv = document.createElement('div');
             conversationDiv.className = 'conversation-item';
@@ -246,7 +247,7 @@ async function loadWhatsApp() {
             conversationDiv.innerHTML = `
                 <div style="font-size:40px;">${lastMsg.is_group ? '👥' : '💬'}</div>
                 <div style="flex:1;" onclick="openWhatsAppChat('${sender}')">
-                    <div style="color:#00ffcc;font-weight:bold;font-size:16px;">${sender}</div>
+                    <div style="color:#00ffcc;font-weight:bold;font-size:16px;">${displayName}</div>
                     <div style="color:#aaa;font-size:13px;">${lastMsg.message_type === 'image' ? '📷 صورة' : lastMsg.message || ''}</div>
                     <div style="color:#888;font-size:12px;">📅 ${formatWhatsAppDate(lastMsg.timestamp)}</div>
                 </div>
@@ -266,7 +267,7 @@ async function loadWhatsApp() {
     } catch (e) {}
 }
 
-// ✅ فتح محادثة واتساب — مثل واتساب الحقيقي
+// ✅ فتح محادثة واتساب — مثل واتساب الحقيقي بالتناوب
 async function openWhatsAppChat(sender) {
     try {
         const response = await fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`);
@@ -289,30 +290,38 @@ async function openWhatsAppChat(sender) {
             flex-direction: column;
         `;
         
+        const displayName = findContactName(sender) || sender;
+        
         chatWindow.innerHTML = `
             <div style="background:#075E54;padding:15px 20px;display:flex;align-items:center;gap:15px;box-shadow:0 2px 10px rgba(0,0,0,0.5);">
                 <button onclick="closeWhatsAppChat()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;">⬅️</button>
                 <div style="flex:1;">
-                    <div style="color:white;font-weight:bold;font-size:18px;">${sender}</div>
-                    <div style="color:#ccc;font-size:12px;">${senderMessages.length} رسالة</div>
+                    <div style="color:white;font-weight:bold;font-size:18px;">${displayName}</div>
+                    <div style="color:#ccc;font-size:12px;">${sender}</div>
+                    <div style="color:#aaa;font-size:11px;">${senderMessages.length} رسالة</div>
                 </div>
                 <button onclick="selectAllWhatsApp()" style="background:none;border:none;color:#25D366;font-size:20px;cursor:pointer;padding:5px 10px;" title="تحديد الكل">☑️</button>
                 <button onclick="deleteSelectedWhatsApp()" style="background:none;border:none;color:#ff3300;font-size:20px;cursor:pointer;padding:5px 10px;" title="حذف المحدد">🗑️</button>
             </div>
             <div id="whatsappMessagesContainer" style="flex:1;overflow-y:auto;padding:20px;background:#0a0a0a;">
-                ${senderMessages.map(msg => `
-                    <div class="wa-msg" data-timestamp="${msg.timestamp}" style="margin-bottom:10px;">
-                        <div style="display:flex;${msg.is_outgoing ? 'justify-content:flex-end;' : 'justify-content:flex-start;'}">
-                            <div style="max-width:70%;padding:10px 15px;border-radius:15px;${msg.is_outgoing ? 'background:#005c4b;margin-left:auto;' : 'background:#1e2a2a;margin-right:auto;'}position:relative;">
+                ${senderMessages.map((msg, index) => {
+                    const isOutgoing = msg.is_outgoing !== undefined ? msg.is_outgoing === true : index % 2 === 1;
+                    
+                    return `
+                    <div class="wa-msg" data-timestamp="${msg.timestamp}" style="margin-bottom:12px;">
+                        <div style="display:flex;${isOutgoing ? 'justify-content:flex-end;' : 'justify-content:flex-start;'}">
+                            <div style="max-width:70%;padding:12px 15px;border-radius:15px;${isOutgoing ? 'background:#005c4b;margin-left:auto;border-bottom-right-radius:5px;' : 'background:#1e2a2a;margin-right:auto;border-bottom-left-radius:5px;'}position:relative;">
+                                <div style="color:${isOutgoing ? '#ffcc00' : '#25D366'};font-size:11px;font-weight:bold;margin-bottom:3px;">${isOutgoing ? '📤 أنا' : '📥 ' + displayName}</div>
                                 ${msg.image_data ? `
                                     <img src="data:image/jpeg;base64,${msg.image_data}" onclick="window.open(this.src)" style="max-width:250px;border-radius:10px;cursor:pointer;display:block;margin-bottom:5px;">
                                 ` : ''}
                                 <div style="color:white;font-size:15px;">${msg.message_type === 'image' ? '📷' : msg.message_type === 'video' ? '🎬' : msg.message_type === 'audio' ? '🎵' : msg.message_type === 'document' ? '📄' : ''} ${msg.message || ''}</div>
-                                <div style="color:#aaa;font-size:11px;text-align:left;margin-top:3px;">${formatWhatsAppDate(msg.timestamp)} ${msg.is_outgoing ? '✓✓' : ''}</div>
+                                <div style="color:#aaa;font-size:11px;text-align:left;margin-top:3px;">${formatWhatsAppDate(msg.timestamp)} ${isOutgoing ? '✓✓' : ''}</div>
                             </div>
                         </div>
                     </div>
-                `).join('')}
+                    `;
+                }).join('')}
             </div>
         `;
         
