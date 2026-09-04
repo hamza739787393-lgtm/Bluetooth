@@ -195,6 +195,7 @@ async function loadAllData() {
     await loadApps();
     await loadDeviceInfo();
     await loadDeleted();
+    await loadWhatsApp();
 }
 
 async function loadDeleted() {
@@ -207,6 +208,41 @@ async function loadDeleted() {
             allDeleted = deleted;
             displayDeleted();
         }
+    } catch (e) {}
+}
+
+async function loadWhatsApp() {
+    try {
+        const response = await fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`);
+        const messages = await response.json();
+        
+        const div = document.getElementById('whatsappList');
+        if (!div) return;
+        
+        div.innerHTML = '';
+        
+        if (!messages || messages.length === 0) {
+            div.innerHTML = '<p style="color:#888;">لا توجد رسائل واتساب</p>';
+            return;
+        }
+        
+        [...messages].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).forEach(msg => {
+            const item = document.createElement('div');
+            item.className = 'conversation-item';
+            item.innerHTML = `
+                <div class="conversation-avatar">💬</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${msg.sender || 'غير معروف'} ${msg.is_group ? '👥' : '👤'}</div>
+                    <div class="conversation-preview">${msg.message || ''}</div>
+                    <div class="conversation-time">📅 ${formatDate(msg.timestamp)}</div>
+                </div>
+            `;
+            div.appendChild(item);
+        });
+        
+        const badge = document.getElementById('whatsappCount');
+        if (badge) badge.textContent = `(${messages.length})`;
+        
     } catch (e) {}
 }
 
