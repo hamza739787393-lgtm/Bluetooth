@@ -211,6 +211,7 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
+// ✅ تحميل رسائل واتساب — محادثات مجمعة
 async function loadWhatsApp() {
     try {
         const response = await fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`);
@@ -226,24 +227,95 @@ async function loadWhatsApp() {
             return;
         }
         
-        [...messages].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).forEach(msg => {
-            const item = document.createElement('div');
-            item.className = 'conversation-item';
-            item.innerHTML = `
+        // ✅ تجميع الرسائل حسب المرسل
+        const conversations = {};
+        messages.forEach(msg => {
+            const sender = msg.sender || 'غير معروف';
+            if (!conversations[sender]) {
+                conversations[sender] = [];
+            }
+            conversations[sender].push(msg);
+        });
+        
+        // ✅ عرض كل محادثة في مربع مستقل
+        Object.keys(conversations).forEach(sender => {
+            const msgs = conversations[sender].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            const lastMsg = msgs[msgs.length - 1];
+            
+            const conversationDiv = document.createElement('div');
+            conversationDiv.className = 'conversation-item';
+            conversationDiv.style.cursor = 'pointer';
+            conversationDiv.onclick = () => toggleWhatsAppChat(sender, conversationDiv);
+            
+            conversationDiv.innerHTML = `
                 <div class="conversation-avatar">💬</div>
                 <div class="conversation-info">
-                    <div class="conversation-name">${msg.sender || 'غير معروف'} ${msg.is_group ? '👥' : '👤'}</div>
-                    <div class="conversation-preview">${msg.message || ''}</div>
-                    <div class="conversation-time">📅 ${formatDate(msg.timestamp)}</div>
+                    <div class="conversation-name">${sender} ${lastMsg.is_group ? '👥' : '👤'}</div>
+                    <div class="conversation-preview">${lastMsg.message || ''}</div>
+                    <div class="conversation-time">📅 ${formatDate(lastMsg.timestamp)} | عدد الرسائل: ${msgs.length}</div>
                 </div>
+                <div class="conversation-count">${msgs.length}</div>
             `;
-            div.appendChild(item);
+            
+            div.appendChild(conversationDiv);
         });
         
         const badge = document.getElementById('whatsappCount');
         if (badge) badge.textContent = `(${messages.length})`;
         
     } catch (e) {}
+}
+
+// ✅ دالة فتح/إغلاق المحادثة
+function toggleWhatsAppChat(sender, conversationDiv) {
+    // ✅ البحث عن صندوق الرسائل الموجود
+    const existingBox = conversationDiv.nextElementSibling;
+    
+    if (existingBox && existingBox.classList.contains('whatsapp-chat-box')) {
+        // ✅ إذا موجود — أغلقه
+        existingBox.remove();
+        return;
+    }
+    
+    // ✅ إنشاء صندوق الرسائل
+    const chatBox = document.createElement('div');
+    chatBox.className = 'whatsapp-chat-box';
+    chatBox.style.cssText = `
+        background: #0a0a0a;
+        border: 1px solid #25D366;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        max-height: 400px;
+        overflow-y: auto;
+    `;
+    
+    // ✅ إحضار كل رسائل هذا المرسل
+    fetch(`/api.php?action=get_whatsapp&device=${encodeURIComponent(currentDevice)}`)
+        .then(res => res.json())
+        .then(messages => {
+            const senderMessages = messages.filter(m => (m.sender || 'غير معروف') === sender)
+                .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            senderMessages.forEach(msg => {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message incoming';
+                msgDiv.innerHTML = `
+                    <div class="message-bubble">
+                        <div class="message-text">${msg.message || ''}</div>
+                        <div class="message-time">📅 ${formatDate(msg.timestamp)}</div>
+                    </div>
+                `;
+                chatBox.appendChild(msgDiv);
+            });
+            
+            // ✅ إدراج الصندوق بعد المحادثة
+            conversationDiv.after(chatBox);
+        })
+        .catch(e => {
+            chatBox.innerHTML = '<p style="color:#ff0000;">خطأ في تحميل الرسائل</p>';
+            conversationDiv.after(chatBox);
+        });
 }
 
 function displayDeleted() {
