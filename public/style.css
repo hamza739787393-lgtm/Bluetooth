@@ -13,7 +13,6 @@ h1 { color: #00ffff; font-size: 32px; text-shadow: 0 0 10px #00ffff, 0 0 20px #0
 .logout-btn { background: #1a0000; color: #ff0066; padding: 8px 15px; border: 1px solid #ff0066; border-radius: 5px; cursor: pointer; animation: btnPulse 2s infinite; }
 .delete-btn { background: #1a0000; color: #ff3300; padding: 8px 15px; border: 1px solid #ff3300; border-radius: 5px; cursor: pointer; animation: btnPulseRed 2s infinite; }
 
-/* ✅ أزرار الكاميرا — تصميم نيون خاص */
 .camera-controls {
     display: flex;
     gap: 12px;
@@ -206,6 +205,43 @@ tr:hover { background: #111; }
 #locationDetails { background: #111; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #00ffcc; }
 #locationDetails p { color: #00ffcc; }
 
+/* ✅ صندوق محادثة واتساب */
+.whatsapp-chat-box {
+    animation: fadeIn 0.3s;
+}
+
+.whatsapp-chat-box .message {
+    display: flex;
+    margin-bottom: 8px;
+}
+
+.whatsapp-chat-box .message-bubble {
+    max-width: 100%;
+    padding: 10px 15px;
+    border-radius: 10px;
+    background: #111;
+    border: 1px solid #25D366;
+    color: white;
+    width: 100%;
+}
+
+.whatsapp-chat-box .message-text {
+    color: #e0e0e0;
+    font-size: 14px;
+}
+
+.whatsapp-chat-box .message-time {
+    color: #888;
+    font-size: 11px;
+    margin-top: 5px;
+}
+
+.whatsapp-chat-box .message-bubble:hover {
+    border-color: #00ffcc;
+    box-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
+    transition: all 0.3s;
+}
+
 @media (max-width: 768px) {
     .container { padding: 10px; }
     header { flex-direction: column; }
@@ -214,4 +250,4 @@ tr:hover { background: #111; }
     .thumb { height: 120px; }
     h1 { font-size: 24px; }
     .path-input { min-width: 100px; }
-}
+    }
